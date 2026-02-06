@@ -1,0 +1,186 @@
+---
+title: "AI-Driven Cost Predictor in the Non-Life Insurance Sector"
+subtitle: 'HarvardX Data Science Professional Certificate PH125.9x Capstone'
+author: "Jean-Marie Roy"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{hyperref}
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+# Load data from global environment :
+#load("fulldata.RData")
+
+# To increase the speed of the rendering, we only run the "CarInsurance" code separately,
+# and use the variables stored in the global environment.
+# This also allows to reduce the size of the Rmd file by moving as much code as possible to the R file.
+# To be able to access the variables, the markdown code should be run in the console :
+#
+# rmarkdown::render("CarInsuranceReport.Rmd")
+#
+# The other option is to include the script in this file by removing the comment of the line below :
+#
+# source("CarInsurance.R")
+#
+```
+
+\begin{center}
+\vspace*{\fill}
+
+\includegraphics[width=0.2\textwidth]{carinsurancereport-cover.png}
+
+\vspace*{\fill}
+\end{center}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+# Introduction
+
+The insurance industry serves as a critical safety net in today's society, offering a mechanism for individuals and businesses to manage risk. At its core, insurance is a contractual agreement between an insurer and a policyholder, where the insurer provides financial protection against certain risks in exchange for regular payments known as premiums. This mitigates the financial impact of unforeseen events, such as accidents, natural disasters, or health issues, ensuring that policyholders are not left vulnerable in times of need.
+
+## Understanding Car Insurance
+
+Car insurance specifically addresses risks related to vehicle ownership and operation. It provides coverage for damages to the vehicle, bodily injury to the driver or passengers, and third-party liabilities that may arise from motor vehicle accidents. Policies can vary widely, including comprehensive coverage, which protects against theft or damage outside of collisions, and liability coverage that pays for damages to other parties in the event of an accident caused by the policyholder.
+
+## How Insurance Works
+
+The fundamental principle of insurance is risk pooling. By collecting premiums from multiple policyholders, insurance companies can create a reserve fund to cover claims when they arise. The likelihood of individual claims is statistically evaluated, allowing insurers to set premium rates that reflect the risk associated with different policyholders. This system is crucial for maintaining financial stability within the insurance sector, enabling insurers to meet their commitments even in challenging circumstances.
+
+## Impact of the Digital Age
+
+In recent years, the insurance industry has experienced significant transformation due to the digital age. Technologies such as mobile applications, online platforms, and telematics have revolutionized how insurance is marketed, sold, and managed. Customers now enjoy convenience in purchasing policies, accessing services, and making claims through user-friendly digital interfaces.
+
+## The Role of Artificial Intelligence
+
+Among the most influential advancements in the insurance sector is the integration of artificial intelligence (AI) [1]. AI-enhanced systems can analyze vast amounts of data in real-time, improving underwriting processes, claim assessments, and customer service interactions. In car insurance, AI algorithms can evaluate driving behavior through telematics devices, tailoring coverage and pricing based on actual risk rather than historical averages. This not only leads to personalized premium rates but also encourages safer driving habits among policyholders.
+
+Furthermore, AI enables predictive analytics, which empowers insurance companies to anticipate future risks and trends. By leveraging data from various sources, including social media, weather patterns, and historical claims, insurers can develop cost prediction models that enhance financial forecasting and optimize reserve allocation. This transformative approach helps insurance companies remain competitive while also improving customer satisfaction through tailored services.
+
+\newpage
+
+# Objective
+
+This document represents my final capstone project for the HarvardX Data Science Professional Certificate. Throughout this course, I have acquired valuable skills in data analysis, statistical modeling, and machine learning [2]. This project aims to apply those skills within the insurance industry by examining various predictive aspects related to car insurance.
+
+The primary focus of this report is to utilize machine learning tools to predict several key aspects of car insurance, specifically the costs associated with insurance policies, the number of claims, and customer loyalty. By integrating theoretical knowledge with practical applications, I seek to demonstrate my proficiency and understanding gained during the course. Harnessing advanced algorithms and data analytics, this project aspires to deliver insightful predictions that account for multiple risk factors impacting policyholders and their individual situations.
+
+## Claims Prediction
+
+Understanding the number of claims a policyholder is likely to make is crucial for insurers. The frequency and severity of claims directly influence the overall cost of insurance, as a history of frequent claims generally categorizes an individual as a higher risk. By predicting the number of claims accurately, insurers can better manage their risk profiles and set more precise premiums.
+
+## Cost Prediction
+
+The cost of insurance can vary significantly based on several factors, including the type of coverage selected and the individual’s claims history. For example, comprehensive coverage, which protects against various risks beyond mere collisions, typically incurs higher premiums compared to basic liability coverage. This section will utilize machine learning algorithms to forecast insurance costs by analyzing different contributing factors aligned with policyholders’ unique risk profiles.
+
+## Customer Fidelity
+
+Customer fidelity plays a pivotal role in influencing insurance costs. Research indicates that policyholders who maintain their insurance over extended periods are often rewarded with lower premiums. Insurers perceive long-term relationships as indicative of lower risk based on more stable claims histories and overall customer loyalty. This section will explore metrics that assess customer fidelity and its impact on insurance pricing.
+
+## Data Limitations
+
+Despite the ambition to create a robust predictive model, this project faces notable data limitations. The dataset contains limited demographic and policy-related information, and the timeframe includes only 4 to 5 years of data. These constraints can hinder accurate assessments of early termination risk and comprehensive customer profiling. Nevertheless, the goal remains to maximize the use of available data, focusing on the most relevant features to offer meaningful insights into insurance costs and risk assessment in subsequent applications.
+
+\newpage
+
+# Dataset
+
+## The Rarity of Open Datasets in the Insurance Sector
+
+Open datasets in the insurance industry are relatively scarce due to the highly sensitive nature of the information they contain. Insurance companies manage vast amounts of personal and financial data, which, if exposed, could compromise individual privacy and lead to significant legal consequences. The insurance sector is also heavily regulated, requiring strict compliance with data protection laws, such as GDPR in Europe. This regulatory framework makes insurers particularly cautious about sharing their data publicly.
+
+Furthermore, insurance data is often perceived as a competitive advantage. Companies are reluctant to disclose their datasets, fearing that it could reveal proprietary algorithms and models designed for specific underwriting processes and claims assessments. As a result, high-quality open datasets that could significantly contribute to academic and research endeavors are limited.
+
+## Selected Dataset
+
+Given these challenges, the dataset I have selected for analysis is exceptional due to its comprehensive nature and applicability in evaluating AI-driven cost prediction models in the car insurance sector. This dataset originates from a **Spanish insurance company that specializes in non-life insurance**.
+
+While the dataset does include some policyholder demographic information, it is notably limited in scope. However, it features a variety of other important variables essential for a thorough analysis of risks, premiums, and factors influencing claims. This includes details related to the vehicles insured, historical claims data, and additional criteria that can impact risk assessment.
+
+Accessing such a dataset is valuable as it allows for the exploration of correlations and trends relevant to AI-driven cost predictors. The dataset is publicly available at the Mendeley Data website [3], but to ensure its continued accessibility, I have also copied the dataset to my GitHub repository [4]. This redundancy will ensure that the dataset remains available even if the original website removes it. This data is an important resource for understanding the complexities of car insurance and enables the application of predictive analytics in this domain. Through this analysis, I aim to uncover insights that will enhance the development and implementation of AI-driven cost models in insurance.
+
+## Description
+
+The dataset is organized as a spreadsheet file, comprising **105,555 observations** across **30 variables**. Each row within the dataset corresponds to an individual insurance policy recorded over a specific year, covering the period from **November 2015 to December 2018**.
+
+```{r, echo=FALSE}
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+\newpage
+
+The table below is based on the "Descriptive of the variables" spreadsheet, indicating the different variables present in the dataset.
+
+```{r, echo=FALSE}
+kable(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2, width = "12cm")
+```
+
+This table indicates that we have very limited information about the policyholder (or driver). Specifically, we only possess details regarding their age, the duration of their driving licence, the type of car they are driving, and their geographic area. However, we lack critical information such as gender, occupation, and income. In contrast, we have more comprehensive details about the car itself, including its power, number of doors, length, and weight, but we do not have the make or model. Additionally, we have some information related to the insurance policy.
+
+```{r, echo=FALSE}
+#kable(summary_data[[1]], col.names = NULL, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+#  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+\newpage
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+This research was conducted by Smith (2020) @smith2020.
+
+\newpage
+
+# References
+
+[1] Thomas Poufinas, Periklis Gogas, Theophilos Papadimitriou and Emmanouil Zaganidis. 2023. "Machine Learning in Forecasting Motor Insurance Claims." (Machine Learning and Artificial Intelligence in Non-life Insurance: Theory, Methods and Applications.) https://www.mdpi.com/2227-9091/11/9/164
+
+\vspace{10pt}
+
+[2] Rafael Irizarry. “Introduction to Data Science.” https://rafalab.dfci.harvard.edu/dsbook/
+
+\vspace{10pt}
+
+[3] Josep Lledó, Jose M. Pavía. 2024. “Dataset of an Actual Motor Vehicle Insurance Portfolio.” https://data.mendeley.com/datasets/5cxyb5fp4f/2
+
+\vspace{10pt}
+
+[4] Dataset copied to GitHub. Available at: https://github.com/jmr-lab/PH125.9x-Data-Science-CarInsurance (Accessed: 2026).
+
+\vspace{10pt}
+
+Glen, Stephanie. 2020. “RMSE: Root Mean Square Error.” StatisticsHowTo.com. https://www.statisticshowto.com/probability-and-statistics/regression-analysis/rmse-root-mean-square-error/
+
+\vspace{10pt}
+
+Renata Balasco. 2026. "Factors Affecting Car Insurance Rates." https://www.thezebra.com/auto-insurance/driver/other-factors/
