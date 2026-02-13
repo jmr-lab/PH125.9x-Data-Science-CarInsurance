@@ -293,7 +293,7 @@ ggcorrplot(relevant_correlations,
 #########################################################
 
 # Claim Policy Ratio compared to Power, Value_vehicle, Age and Driving_age
-claim_policy_ratio <- function(insurance_data, x_var) {
+claim_policy_ratio <- function(insurance_data, x_var, x_max) {
   insurance_data %>%
     select(ID, Year = Year_last_renewal, !!sym(x_var), N_claims_year) %>%
     group_by(Year, !!sym(x_var)) %>%
@@ -303,16 +303,18 @@ claim_policy_ratio <- function(insurance_data, x_var) {
               .groups = 'drop') %>%
     mutate(Year = as.factor(Year),
            Claim_Policy_Ratio = Nb_policy_claims / Nb_policies) %>%
+#    filter(Nb_policies > 1) %>%
     ggplot(aes_string(x = x_var, y = "Claim_Policy_Ratio", color = "Year")) +
     geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
     labs(x = x_var, y = "Claim Policy Ratio") +
+    xlim(0, x_max) +
     ylim(0, NA) +
     theme_minimal() +
     theme(text = element_text(size = 9), legend.position = "top")
 }
 
 # Number of Policies compared to Power, Value_vehicle, Age and Driving_age
-nb_policies <- function(insurance_data, x_var) {
+nb_policies <- function(insurance_data, x_var, x_max) {
   insurance_data %>%
     select(ID, Year = Year_last_renewal, !!sym(x_var), N_claims_year) %>%
     group_by(Year, !!sym(x_var)) %>%
@@ -322,16 +324,17 @@ nb_policies <- function(insurance_data, x_var) {
     ggplot(aes_string(x = x_var, y = "Nb_policies", color = "Year")) +
     geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
     labs(x = x_var, y = "Nb Policies") +
+    xlim(0, x_max) +
     ylim(0, NA) +
     theme_minimal() +
     theme(text = element_text(size = 9), legend.position = "top")
 }
 
 plot_grid(
-  claim_policy_ratio(insurance_data, "Power"),
-  claim_policy_ratio(insurance_data, "Value_vehicle"),
-  nb_policies(insurance_data, "Power"),
-  nb_policies(insurance_data, "Value_vehicle"),
+  claim_policy_ratio(insurance_data, "Power", 250),
+  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
+  nb_policies(insurance_data, "Power", 250),
+  nb_policies(insurance_data, "Value_vehicle", 60000),
   #  claim_policy_ratio(insurance_data, "Age"),
   #  claim_policy_ratio(insurance_data, "Driving_age"),
   #  claim_policy_ratio(insurance_data, "Premium"),

@@ -301,10 +301,10 @@ As per correlation matrix suggests, the risk of claims and associated cost is ma
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Power, Value vehicle, Age and Driving age"}
 plot_grid(
-  claim_policy_ratio(insurance_data, "Power"),
-  claim_policy_ratio(insurance_data, "Value_vehicle"),
-  nb_policies(insurance_data, "Power"),
-  nb_policies(insurance_data, "Value_vehicle"),
+  claim_policy_ratio(insurance_data, "Power", 250),
+  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
+  nb_policies(insurance_data, "Power", 250),
+  nb_policies(insurance_data, "Value_vehicle", 60000),
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 ```
@@ -360,10 +360,10 @@ We now need to distinguish the 2 groups.
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Power, Value vehicle, Age and Driving age"}
 plot_grid(
-  claim_policy_ratio(insurance_data, "Power"),
-  claim_policy_ratio(insurance_data, "Value_vehicle"),
-  claim_policy_ratio(insurance_data, "Age"),
-  claim_policy_ratio(insurance_data, "Driving_age"),
+  claim_policy_ratio(insurance_data, "Power", 250),
+  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
+  claim_policy_ratio(insurance_data, "Age", 80),
+  claim_policy_ratio(insurance_data, "Driving_age", 80),
 #  claim_policy_ratio(insurance_data, "Premium"),
 #  claim_policy_ratio(insurance_data, "Seniority"),
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
