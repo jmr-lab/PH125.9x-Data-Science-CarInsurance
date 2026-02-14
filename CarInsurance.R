@@ -11,6 +11,7 @@ library(kableExtra)
 library(tidyr)
 library(readxl)
 library(stringr)
+library(fontawesome)
 
 #########################################################
 #         2. Data Preparation                           #
@@ -276,7 +277,7 @@ ggcorrplot(correlation_matrix_policy,
 rm(tmp_data, date_columns, abs_correlation, order_vec)
 
 # Create a new matrix to keep only the relevant correlations
-relevant_correlations <- correlation_matrix[, c("N_claims_year", "Cost_claims_year")]
+relevant_correlations <- correlation_matrix_policy[, c("N_claims_year", "Cost_claims_year")]
 relevant_correlations
 
 ggcorrplot(relevant_correlations, 
