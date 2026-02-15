@@ -116,7 +116,7 @@ While the dataset does include some policyholder demographic information, it is 
 
 Accessing such a dataset is valuable as it allows for the exploration of correlations and trends relevant to AI-driven cost predictors. The dataset is publicly available at the Mendeley Data website [3], but to ensure its continued accessibility, I have also copied the dataset to my GitHub repository [4]. This redundancy will ensure that the dataset remains available even if the original website removes it. This data is an important resource for understanding the complexities of car insurance and enables the application of predictive analytics in this domain. Through this analysis, I aim to uncover insights that will enhance the development and implementation of AI-driven cost models in insurance.
 
-## Structure
+## Files
 
 The dataset is organized as three different files : a spreadsheet and two comma-separated value files.
 
@@ -133,7 +133,12 @@ kbl(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args =
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-\newpage
+The spreadsheet "Descriptive of the variables.xlsx" contains a list of the variables and their description.
+
+The last file "sample type claim.csv" contains a list of different claims. It has 7,366 observations or claims while the main dataset contains 19,646 observations with at least one claim.
+As its name suggests, it is a sample and won't be useful for the rest of the analysis.
+
+## Structure
 
 The table below is based on the "Descriptive of the variables" spreadsheet, indicating the different variables present in the dataset.
 
@@ -146,6 +151,10 @@ kbl(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = li
 This table indicates that we have very limited information about the policyholder (or driver). Specifically, we only possess details regarding their age, the duration of their driving licence, the type of car they are driving, and their geographic area. However, we lack critical information such as gender, occupation, and income. In contrast, we have more comprehensive details about the car itself, including its power, number of doors, length, and weight, but we do not have the make or model. Additionally, we have some information related to the insurance policy.
 
 \newpage
+
+# Exploratory Data Analysis
+
+## Distribution
 
 Here is a summary of the variables associated with the drivers :
 
@@ -208,14 +217,6 @@ The policy IDs range from 1 to 53,502, indicating a substantial dataset of indiv
 Most policyholders maintain 1 to 2 policies, although some hold up to 17 policies, indicating that while many keep a single insurance policy, there are individuals with multiple coverages. The number of claims per policy varies, with a maximum of 25 claims per year and an average of about 0.39 claims, suggesting that most policyholders do not frequently file claims. The cost of claims ranges from 0 to approximately 260,853.2, with an average claim cost around 153.6, indicating that many claims are not high-cost but there are outliers with significant expenses.
 
 Premium costs span from approximately 40.14 to 2,993.34, with a mean premium of about 315.89, reflecting the variety of coverage levels available. The type of risk associated with the policies corresponds to specific vehicle categories: 1 for motorbikes, 2 for vans, 3 for passenger cars, and 4 for agricultural vehicles, with a predominance of risk type 3 (passenger cars) in the dataset.
-
-The last file "sample type claim.csv" contains a list of different claims. It has 7,366 observations or claims while the main dataset contains 19,646 observations with at least one claim.
-
-As its name suggests, it is a sample and won't be useful for the rest of the analysis.
-
-\newpage
-
-# Exploratory Data Analysis
 
 ## Policies
 
