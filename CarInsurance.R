@@ -77,6 +77,39 @@ policy_summary_4 <- insurance_data %>%
   summary()
 
 #########################################################
+#         2. Claims Summary                             #
+#########################################################
+# Load the CSV file into a data frame
+claims_data <- read.csv("data/sample type claim.csv", sep = ";", stringsAsFactors = TRUE)
+
+# Number of observations : 7,366
+str(claims_data)
+head(claims_data)
+
+# Number of claims from the main dataset : 19,646
+nrow(insurance_data %>% filter(N_claims_year > 0))
+
+# Count occurrences of each Claims_type
+claims_type_order <- claims_data %>%
+  group_by(Claims_type) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  pull(Claims_type)
+
+# Reorder Claims_type based on the counts
+claims_data$Claims_type <- factor(claims_data$Claims_type, levels = claims_type_order)
+
+levels(claims_data$Claims_type)
+
+# Create the bar plot for Claims_type
+ggplot(data = claims_data, aes(x = Claims_type)) +
+  geom_bar(fill = "darkgreen") +
+  labs(title = "Repartition of Claims Type",
+       x = "Claims Type",
+       y = "Count") +
+  theme_minimal()
+
+#########################################################
 #         3. Data Analysis                              #
 #########################################################
 

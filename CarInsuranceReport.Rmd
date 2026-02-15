@@ -209,9 +209,9 @@ Most policyholders maintain 1 to 2 policies, although some hold up to 17 policie
 
 Premium costs span from approximately 40.14 to 2,993.34, with a mean premium of about 315.89, reflecting the variety of coverage levels available. The type of risk associated with the policies corresponds to specific vehicle categories: 1 for motorbikes, 2 for vans, 3 for passenger cars, and 4 for agricultural vehicles, with a predominance of risk type 3 (passenger cars) in the dataset.
 
-The last file "sample type claim.csv" contains a list of different claims :
+The last file "sample type claim.csv" contains a list of different claims. It has 7,366 observations or claims while the main dataset contains 19,646 observations with at least one claim.
 
-
+As its name suggests, it is a sample and won't be useful for the rest of the analysis.
 
 \newpage
 
