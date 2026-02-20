@@ -1,5 +1,5 @@
 #########################################################
-#         1. Load required libraries                    #
+#         0. Load required libraries                    #
 #########################################################
 library(cowplot)
 library(dplyr)
@@ -10,30 +10,26 @@ library(lubridate)
 library(kableExtra)
 library(tidyr)
 library(readxl)
+#library(openxlsx)
 library(stringr)
-library(fontawesome)
+#library(fontawesome)
+library(scales)
+#library(glue)
 
 #########################################################
-#         2. Data Preparation                           #
+#         3. Dataset                                    #
 #########################################################
+
+#########################################################
+#         3.3 Files                                     #
+#########################################################
+
 # Load the CSV file into a data frame
 insurance_data <- read.csv("data/Motor vehicle insurance data.csv", sep = ";", stringsAsFactors = TRUE)
 
-# Convert factor dates to Date format
-insurance_data <- insurance_data %>%
-  mutate(
-    Date_start_contract = dmy(as.character(Date_start_contract)),
-    Date_last_renewal = dmy(as.character(Date_last_renewal)),
-    Date_next_renewal = dmy(as.character(Date_next_renewal)),
-    Date_birth = dmy(as.character(Date_birth)),
-    Date_driving_licence = dmy(as.character(Date_driving_licence)),
-    Date_lapse = dmy(as.character(Date_lapse))
-  )
-
 # Number of observations and variables :
-data_summary <- insurance_data %>% summarise(observations = n(),
+insurance_data %>% summarise(observations = n(),
                                              variables = ncol(.))
-data_summary
 
 # View the first few rows of the data frame
 head(insurance_data)
@@ -41,45 +37,14 @@ head(insurance_data)
 # Check the structure of the data frame
 str(insurance_data)
 
-# List the variables from the Excel spreadsheet
-variables <- read_excel("data/Descriptive of the variables.xlsx")
-variables
+# Period covered, we need first to convert the Date_last_renewal to a date format :
+# Convert factor dates to Date format
+insurance_data <- insurance_data %>%
+  mutate(Date_last_renewal = dmy(as.character(Date_last_renewal)))
+min(insurance_data$Date_last_renewal)
+max(insurance_data$Date_last_renewal)
 
-# Summary of the driver details
-driver_summary <- insurance_data %>%
-  select("Date_birth", "Date_driving_licence", "Seniority", "Area", "Second_driver") %>%
-  summary()
-
-# Summary of the car details
-car_summary_1 <- insurance_data %>%
-  select("N_doors", "Power", "Cylinder_capacity", "Type_fuel", "Length", "Weight") %>%
-  summary()
-
-car_summary_2 <- insurance_data %>%
-  select("Year_matriculation", "Value_vehicle") %>%
-  summary()
-
-# Summary of the policy details
-policy_summary_1 <- insurance_data %>%
-  select("ID", "Date_start_contract", "Date_last_renewal", "Date_next_renewal", "Distribution_channel") %>%
-  summary()
-
-policy_summary_2 <- insurance_data %>%
-  select("Policies_in_force", "Max_policies", "Max_products", "Lapse", "Date_lapse") %>%
-  summary()
-
-policy_summary_3 <- insurance_data %>%
-  select("Payment", "Premium", "Type_risk") %>%
-  summary()
-
-policy_summary_4 <- insurance_data %>%
-  select("Cost_claims_year", "N_claims_year", "N_claims_history", "R_Claims_history") %>%
-  summary()
-
-#########################################################
-#         2. Claims Summary                             #
-#########################################################
-# Load the CSV file into a data frame
+# Load the "sample type claim.csv" file into a data frame
 claims_data <- read.csv("data/sample type claim.csv", sep = ";", stringsAsFactors = TRUE)
 
 # Number of observations : 7,366
@@ -98,7 +63,6 @@ claims_type_order <- claims_data %>%
 
 # Reorder Claims_type based on the counts
 claims_data$Claims_type <- factor(claims_data$Claims_type, levels = claims_type_order)
-
 levels(claims_data$Claims_type)
 
 # Create the bar plot for Claims_type
@@ -110,7 +74,122 @@ ggplot(data = claims_data, aes(x = Claims_type)) +
   theme_minimal()
 
 #########################################################
-#         3. Data Analysis                              #
+#         3.4 Variables (description)                   #
+#########################################################
+
+# Get the description of the variables from the "Descriptive of the variables.xlsx" Excel spreadsheet
+variables <- read_excel("data/Descriptive of the variables.xlsx")
+variables
+
+#########################################################
+#         4. Data Transformation                        #
+#########################################################
+
+# Convert factor dates to Date format
+insurance_data <- insurance_data %>%
+  mutate(
+    Date_start_contract = dmy(as.character(Date_start_contract)),
+#    Date_last_renewal = dmy(as.character(Date_last_renewal)),
+    Date_next_renewal = dmy(as.character(Date_next_renewal)),
+    Date_birth = dmy(as.character(Date_birth)),
+    Date_driving_licence = dmy(as.character(Date_driving_licence)),
+    Date_lapse = dmy(as.character(Date_lapse))
+  )
+
+# The difference between Date_last_renewal and Date_next_renewal is exactly one year (365 or 366 days),
+# We don't need to keep one of them and will only consider Date_last_renewal :
+diff_renewal_days <- insurance_data$Date_next_renewal - insurance_data$Date_last_renewal
+min(diff_renewal_days)
+max(diff_renewal_days)
+
+# Remove Date_next_renewal column
+insurance_data <- insurance_data %>%
+  select(-Date_next_renewal)
+
+# Extract Current Year from Date_last_renewal
+insurance_data <- insurance_data %>%
+  mutate(Year = year(Date_last_renewal))
+
+# We add Age and Driving_age columns as they may impact the number of claims and premium,
+# We only have Date_birth and Date_driving_licence but they may not be relevant as
+# people of same age for example may pay the same price regardless of the current year.
+insurance_data <- insurance_data %>%
+  mutate(
+    Age = as.integer((Year - year(Date_birth))),
+    Driving_age = as.integer((Year - year(Date_driving_licence)))
+  )
+
+# Remove Date_birth and Date_driving_licence columns
+insurance_data <- insurance_data %>%
+  select(-Date_birth, -Date_driving_licence)
+
+# Problem with history data :
+# For ID 12, 12 claims were raised but the history column shows only 8,
+# For ID 18, the R_Claims_history is 0.36 which correspond to 9 claims over a period of 25 years, but not 7.2 over 20 years :
+data_problem_sample <- insurance_data %>%
+  filter(ID %in% c(12, 18)) %>%
+  select(ID, N_claims_history, N_claims_year, R_Claims_history, Date_start_contract, Date_last_renewal, Seniority)
+colnames(data_problem_sample) <- gsub("_", " ", colnames(data_problem_sample))
+data_problem_sample
+
+# We recalculate the Number of claims history :
+# First we calculate the cumulative sum of the claims (N_claims_year) less the claims for the current year (to have the history),
+# then we calculate the sum of claims (N_claims_year) per ID,
+# we compare this sum with the value of N_claims_history, if N_claims_history is higher we use it as total claims,
+# the difference being some claims raised before 2015 and not recorded in N_claims_year,
+# then we add the difference D to the cumulative sum to get the history :
+insurance_data <- insurance_data %>%
+  group_by(ID) %>%
+  mutate(N_claims_cumulative = cumsum(N_claims_year) - N_claims_year,
+         diff_claims_history = pmax(N_claims_history - sum(N_claims_year), 0),
+         N_claims_history_2 = N_claims_cumulative + diff_claims_history) %>%
+  ungroup() %>%
+  select(-N_claims_history, -N_claims_cumulative, -diff_claims_history) %>%
+  rename(N_claims_history = N_claims_history_2)
+
+# For the seniority, we first calculate the contract age as the difference in years between Date_last_renewal and Date_start_contract,
+# then we add the difference between Seniority and the max contract age if there is any :
+insurance_data <- insurance_data %>%
+  group_by(ID) %>%
+  mutate(Contract_year = round(as.numeric(difftime(Date_last_renewal, Date_start_contract, units = "days")) / 365.25),
+         Max_Contract_Age = 1 + max(Contract_year, na.rm = TRUE),
+         diff_seniority = pmax(Seniority - Max_Contract_Age, 0),
+         Seniority_2 = Contract_year + diff_seniority) %>%
+  ungroup() %>%
+  select(-Seniority, -Contract_year, -Max_Contract_Age, -diff_seniority) %>%
+  rename(Seniority = Seniority_2)
+
+# We can now calculate the ratio of claims as 0 if Seniority is 0, otherwise N_claims_history / Seniority :
+insurance_data <- insurance_data %>%
+  mutate(R_Claims_history_2 = ifelse(Seniority == 0, 
+                                     0, 
+                                     N_claims_history / Seniority)) %>%
+  select(-R_Claims_history) %>%
+  rename(R_Claims_history = R_Claims_history_2)
+
+# We now create the train and test sets based on the cutoff date.
+# the idea is we will use the train set to create an algorithm,
+# and then we will try to predict future costs from the cutoff date :
+
+# Define the cutoff date
+cutoff_date <- as.Date("2018-09-01")
+
+# Create train_set
+train_set <- insurance_data %>%
+  filter(Date_last_renewal < cutoff_date)
+nrow(train_set)
+
+# and test_set
+test_set <- insurance_data %>%
+  filter(Date_last_renewal >= cutoff_date)
+nrow(test_set)
+
+#########################################################
+#         5. Exploratory Data Analysis                  #
+#########################################################
+
+#########################################################
+#         5.1.1 Timeline                                #
 #########################################################
 
 # Calculate the total number of days covered by the data :
@@ -141,7 +220,7 @@ total_cost <- insurance_data %>%
 
 # Summarize the data per year :
 # number of days, policies, policies with claims, claims and total cost
-insurance_year <- insurance_data %>%
+insurance_year <- train_set %>%
   mutate(Year = year(Date_last_renewal)) %>%
   select(ID, Year, N_claims_year, Cost_claims_year, Date_last_renewal) %>%
   group_by(Year) %>%
@@ -152,24 +231,68 @@ insurance_year <- insurance_data %>%
     Total_claims = sum(N_claims_year),
     Total_Cost = sum(Cost_claims_year)
   ) %>%
-  mutate(Year = as.character(Year)) %>%
-  bind_rows(data.frame(Year = "Total",
-                       Days = total_days,
-                       Policies = total_policies,
-                       Policies_with_claims = total_policies_with_claims,
-                       Total_claims = total_claims,
-                       Total_Cost = total_cost))
-
+  ungroup() %>%
+  mutate(Year = as.character(Year))
 
 # Replace underscores with spaces in headers
 colnames(insurance_year) <- gsub("_", " ", colnames(insurance_year))
 insurance_year
 
+# Rename columns to add "\n" :
+names(insurance_year)[names(insurance_year) == "Policies with claims"] <- "Policies\nwith claims"
+
+# Transform data to longer format
+insurance_long <- insurance_year %>%
+  pivot_longer(
+    cols = c("Policies", "Policies\nwith claims",
+             "Total claims", "Total Cost"),
+    names_to = "Measure",
+    values_to = "Value"
+  )
+
+# Define a custom color palette
+custom_colors_year <- c("Policies" = "darkgreen",
+                   "Policies\nwith claims" = "darkred",
+                   "Total claims" = "gray",
+                   "Total Cost" = "gray")
+
+# Plot the number of policies (total and with claims) :
+timeline_policies_claims <- insurance_long %>%
+  filter(Measure %in% c("Policies", "Policies\nwith claims", "Total claims")) %>%
+  ggplot(aes(x = Year, y = Value, fill = Measure)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Number of Policies / Claims") +
+  scale_fill_manual(values = custom_colors_year) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(title.position = "top", label.theme = element_text(size = 8)))
+
+# Plot the total cost :
+timeline_cost <- insurance_long %>%
+  filter(Measure %in% c("Total Cost")) %>%
+  ggplot(aes(x = Year, y = Value, fill = Measure)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Cost") +
+  scale_y_continuous(labels = label_number(scale = 1e-6, suffix = "M")) +
+  scale_fill_manual(values = custom_colors_year) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(title.position = "top", label.theme = element_text(size = 8)))
+
+# Plot the 2 graphs :
+plot_grid(
+  timeline_policies_claims,
+  timeline_cost,
+  ncol = 2, align = 'hv'
+)
+
 # We consider a policy is new if the Date_last_renewal and the Date_start_contract are in the same year,
 # and it will be terminating if Date_last_renewal and Date_lapse are in the same year.
 # We display the number of policies per year, number of new and terminating policies,
 # and the proportion of policies / new policies / terminating policies with a claim in the current year :
-insurance_mv <- insurance_data %>%
+insurance_mv <- train_set %>%
   mutate(Year = year(Date_last_renewal),
          Year_Start = year(Date_start_contract),
          Year_End = year(Date_lapse)) %>%
@@ -189,26 +312,246 @@ insurance_mv <- insurance_data %>%
 colnames(insurance_mv) <- gsub("_", " ", colnames(insurance_mv))
 insurance_mv
 
+# Rename columns to add "\n" :
+names(insurance_mv)[names(insurance_mv) == "Total Policies"] <- "Total\nPolicies"
+names(insurance_mv)[names(insurance_mv) == "New Policies"] <- "New\nPolicies"
+names(insurance_mv)[names(insurance_mv) == "Terminating Policies"] <- "Terminating\nPolicies"
+names(insurance_mv)[names(insurance_mv) == "Proportion All With Claims"] <- "% All\nWith Claims"
+names(insurance_mv)[names(insurance_mv) == "Proportion New With Claims"] <- "% New\nWith Claims"
+names(insurance_mv)[names(insurance_mv) == "Proportion Terminating With Claims"] <- "% Terminating\nWith Claims"
+
+# Reshape the data from wide to long format
+long_data <- insurance_mv %>%
+  pivot_longer(
+    cols = c("Total\nPolicies", "New\nPolicies", "Terminating\nPolicies",
+             "% All\nWith Claims", "% New\nWith Claims", "% Terminating\nWith Claims"),
+    names_to = "Measure",
+    values_to = "Value"
+  )
+long_data
+
+# Create an ordered factor for the Measure
+long_data$Measure <- factor(long_data$Measure, 
+                            levels = c("New\nPolicies", "Terminating\nPolicies", "Total\nPolicies",
+                                       "% New\nWith Claims", "% Terminating\nWith Claims", "% All\nWith Claims"))
+
+# Define a custom color palette
+custom_colors <- c("New\nPolicies" = "darkgreen",
+                   "Terminating\nPolicies" = "darkred",
+                   "Total\nPolicies" = "gray",
+                   "% New\nWith Claims" = "darkgreen",
+                   "% Terminating\nWith Claims" = "darkred",
+                   "% All\nWith Claims" = "gray")
+
+# Plot the number of new/terminating and total policies :
+timeline_nb_policies <- long_data %>%
+  filter(Measure %in% c("New\nPolicies", "Terminating\nPolicies", "Total\nPolicies")) %>%
+  ggplot(aes(x = Year, y = Value, fill = Measure)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Number of Policies") +
+  scale_fill_manual(values = custom_colors) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(title.position = "top", label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+
+# Plot the number of new/terminating and total policies :
+timeline_r_policies_claim <- long_data %>%
+  filter(Measure %in% c("% New\nWith Claims", "% Terminating\nWith Claims", "% All\nWith Claims")) %>%
+  ggplot(aes(x = Year, y = Value, fill = Measure)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "% of Policies with Claims") +
+  scale_fill_manual(values = custom_colors) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(title.position = "top", label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+
+# Plot the 2 graphs :
+plot_grid(
+  timeline_nb_policies,
+  timeline_r_policies_claim,
+  ncol = 2, align = 'hv'
+)
+
 #########################################################
-#         3.1 Correlation matrix                        #
+#         5.1.2 Vehicle                                 #
+#########################################################
+
+# Summary of the car details :
+car_summary_1 <- train_set %>%
+  select("N_doors", "Power", "Cylinder_capacity", "Type_fuel", "Length", "Weight") %>%
+  summary()
+
+car_summary_2 <- train_set %>%
+  select("Year_matriculation", "Value_vehicle") %>%
+  summary()
+
+car_summary_1
+car_summary_2
+
+# Distribution of Power :
+distribution_power <- ggplot(train_set, aes(x = Power)) +
+  geom_histogram(binwidth = 20, fill = "darkred", alpha = 0.8) +
+  labs(x = "Power",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Distribution of Value vehicle :
+distribution_value <- ggplot(train_set, aes(x = Value_vehicle)) +
+  geom_histogram(binwidth = 3000, fill = "darkred", alpha = 0.8) +
+  labs(x = "Value",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Plot the 2 graphs :
+plot_grid(
+  distribution_power,
+  distribution_value,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.1.3 Policy Holder                           #
+#########################################################
+
+# Summary of the driver details
+driver_summary <- train_set %>%
+  select("Date_birth", "Date_driving_licence", "Seniority", "Area", "Second_driver") %>%
+  summary()
+driver_summary
+
+# Distribution of dates of birth :
+Year_birth <- format(train_set$Date_birth, "%Y")
+distribution_dob <- ggplot(train_set, aes(x = Year_birth)) +
+  geom_bar(fill="darkblue", alpha = 0.8) +
+  labs(x = "Year of Birth",
+       y = "Frequency") +
+  scale_x_discrete(breaks = seq(1930, 2020, by = 10)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate the difference in years
+age_driving_licence <- as.numeric(difftime(train_set$Date_driving_licence, 
+                                           train_set$Date_birth, 
+                                           units = "weeks")) / 52.25
+
+# Create a histogram of the age difference
+distribution_licence_age <- ggplot(train_set, aes(x = age_driving_licence)) +
+  geom_histogram(binwidth = 1, fill = "darkblue", alpha = 0.8) +
+  labs(x = "Driving Licence (age)",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Plot the 2 graphs :
+plot_grid(
+  distribution_dob,
+  distribution_licence_age,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.1.4 Policy Details                          #
+#########################################################
+
+# Summary of the policy details
+policy_summary_1 <- train_set %>%
+  select("ID", "Date_start_contract", "Date_last_renewal", "Date_next_renewal", "Distribution_channel") %>%
+  summary()
+
+policy_summary_2 <- train_set %>%
+  select("Policies_in_force", "Max_policies", "Max_products", "Lapse", "Date_lapse") %>%
+  summary()
+
+policy_summary_3 <- train_set %>%
+  select("Payment", "Premium", "Type_risk") %>%
+  summary()
+
+policy_summary_4 <- train_set %>%
+  select("Cost_claims_year", "N_claims_year", "N_claims_history", "R_Claims_history") %>%
+  summary()
+
+policy_summary_1
+policy_summary_2
+policy_summary_3
+policy_summary_4
+
+# Distribution of the Seniority :
+distribution_seniority <- ggplot(train_set, aes(x = Seniority)) +
+  geom_histogram(binwidth = 1, fill = "darkblue", alpha = 0.8) +
+  labs(x = "Seniority",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_seniority
+
+
+# Distribution of the Nb of Policies :
+distribution_nb_policies <- ggplot(train_set, aes(x = Policies_in_force)) +
+  geom_histogram(binwidth = 1, fill = "darkgreen", alpha = 0.8) +
+  labs(x = "Nb Policies",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_nb_policies
+
+# Distribution of the Type Risk :
+distribution_type_risk <- ggplot(train_set, 
+                                 aes(x = factor(Type_risk, 
+                                                levels = c(1, 2, 3, 4), 
+                                                labels = c("Motorbike", "Van", "Car", "Tractor")))) +
+  geom_bar(fill = "darkgreen", alpha = 0.8) +
+  labs(x = "Type Risk",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_type_risk
+
+# Distribution of the Premium values :
+distribution_premium <- ggplot(train_set, aes(x = Premium)) +
+  geom_histogram(binwidth = 10, fill = "darkgreen", alpha = 0.8) +
+  labs(x = "Premium",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_premium
+
+# Distribution of the Number of Claims :
+distribution_claims <- ggplot(train_set, aes(x = N_claims_year)) +
+  geom_histogram(binwidth = 1, fill = "darkgreen", alpha = 0.8) +
+  labs(x = "Nb Claims",
+       y = "Frequency") +
+#  scale_y_log10() +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_claims
+
+# Distribution of the Cost :
+distribution_cost <- ggplot(train_set, aes(x = Cost_claims_year)) +
+  geom_histogram(binwidth = 10, fill = "darkgreen", alpha = 0.8) +
+  labs(x = "Cost",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+distribution_cost
+
+# Plot 4 graphs :
+plot_grid(
+  distribution_nb_policies,
+  distribution_type_risk,
+  distribution_premium,
+  distribution_claims,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.2 Correlations                              #
 #########################################################
 
 # We have 30 variables, we need to remove some of them
-# The difference between Date_last_renewal and Date_next_renewal is exactly one year (365 or 366 days),
-# We don't need to keep one of them and will only consider Date_last_renewal :
-diff_renewal_days <- insurance_data$Date_next_renewal - insurance_data$Date_last_renewal
-min(diff_renewal_days)
-max(diff_renewal_days)
-
-# We add Age and Driving_age columns as they may impact the number of claims and premium,
-# We only have Date_birth and Date_driving_licence but they may not be relevant as
-# people of same age for example may pay the same price regardless of the current year.
-insurance_data <- insurance_data %>%
-  mutate(
-    Year_last_renewal = year(Date_last_renewal),
-    Age = as.integer((Year_last_renewal - year(Date_birth))),
-    Driving_age = as.integer((Year_last_renewal - year(Date_driving_licence)))
-  )
 
 # We have many NAs in Type_fuel and Length columns, we need to check if they can be related to other variables,
 # We assume that Diesel car are heavier than Petrol ones,
@@ -219,7 +562,7 @@ insurance_data %>%
     Type_fuel = as.character(Type_fuel),  # Convert factor to character
     Type_fuel = replace_na(Type_fuel, "0"),  # Replace NA in Type_fuel with "0"
     Type_fuel = ifelse(Type_fuel == "P", 1, 2)
-    ) %>%
+  ) %>%
   select(Type_fuel, Length, Weight) %>%
   cor()
 
@@ -236,25 +579,21 @@ tmp_data <- tmp_data %>%
   )
 
 # Define the date columns
-date_columns <- c("Date_start_contract", "Date_last_renewal", 
-                  "Date_next_renewal", "Date_birth", 
-                  "Date_driving_licence", "Date_lapse")
+date_columns <- c("Date_start_contract", "Date_last_renewal", "Date_lapse")
 
 # Convert each date column to numeric
 for (col in date_columns) {
   tmp_data[[col]] <- as.numeric(tmp_data[[col]])
 }
+
 # As Date_lapse is numeric
 tmp_data$Date_lapse[is.na(tmp_data$Date_lapse)] <- 0
+
 # We remove :
-# Date_birth (replaced by Age),
-# Date_driving_licence (replaced by Driving_age),
 # Length (highly correlated to Weight; cor = 0.83),
-# Date_next_renewal (highly correlated to Date_last_renewal),
-# Year_last_renewal (not used),
 # ID (not used).
 tmp_data <- tmp_data %>%
-  select(-Date_birth, -Date_driving_licence, -Length, -Date_next_renewal, -Year_last_renewal, -ID)
+  select(-Length, -ID)
 str(tmp_data)
 
 # We start by displaying the correlations between variables related to the car,
@@ -275,6 +614,16 @@ order_vec <- order(rowSums(abs_correlation), decreasing = FALSE)
 # Reorder the correlation matrix
 correlation_matrix_car <- correlation_matrix_car[order_vec, order_vec]
 correlation_matrix_car
+
+# Display the correlation matrix for the vehicles :
+ggcorrplot(correlation_matrix_car,
+           lab_size = 3,
+           ggtheme = theme_dark(base_size = 9)) +
+  theme(
+    axis.text.x = element_text(size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "top"
+  )
 
 # We then display the correlations between variables related to the policy,
 # and some car attributes (Power, Date_matriculation and Type_risk) :
@@ -323,34 +672,139 @@ ggcorrplot(relevant_correlations,
   )
 
 #########################################################
-#         3.2 Claim Policy Ratios                       #
+#         5.2 Correlation Plots                         #
 #########################################################
 
-# Claim Policy Ratio compared to Power, Value_vehicle, Age and Driving_age
-claim_policy_ratio <- function(insurance_data, x_var, x_max) {
-  insurance_data %>%
-    select(ID, Year = Year_last_renewal, !!sym(x_var), N_claims_year) %>%
+# As we have many data, we only keep 400 observations to display :
+set.seed(123)
+sampled_data <- insurance_data[sample(nrow(insurance_data), 400), ]
+
+# Correlation plot of the Value vehicle vs Power :
+corplot_power <- ggplot(sampled_data, aes(x = Power, y = Value_vehicle)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Power",
+       y = "Value") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Correlation plot of the Premium vs Value vehicle :
+corplot_premium <- ggplot(sampled_data, aes(x = Value_vehicle, y = Premium)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Value",
+       y = "Premium") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Correlation plot of the Premium vs Year matriculation :
+corplot_year_matriculation <- ggplot(sampled_data, aes(x = Year_matriculation, y = Premium)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Year Matriculation",
+       y = "Premium") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Correlation plot of the Driving age vs Age :
+corplot_driving_age <- ggplot(sampled_data, aes(x = Age, y = Driving_age)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Age",
+       y = "Driving age") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Correlation plot of the Premium vs Age :
+corplot_age <- ggplot(sampled_data, aes(x = Age, y = Premium)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Age",
+       y = "Premium") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Plot 4 graphs :
+plot_grid(
+  corplot_power,
+  corplot_premium,
+  #  corplot_year_matriculation,
+  corplot_driving_age,
+  corplot_age,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.3.1 Cost - Timeline                         #
+#########################################################
+
+# Summarize total costs by month and year
+monthly_costs <- insurance_data %>%
+  mutate(Year_Month = floor_date(Date_last_renewal, "month")) %>%
+  group_by(Year_Month) %>%
+  summarize(Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
+            Total_Claims = sum(N_claims_year, na.rm = TRUE),
+            .groups = "drop")
+
+# Create the cost plot
+monthly_cost <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Month", y = "Total Cost") +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")) +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Create the claims plot
+monthly_claims <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Claims)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Month", y = "Total Claims") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Create the cost per claim plot
+monthly_ratio <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost / Total_Claims)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Month", y = "Cost per Claim") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Timeline
+plot_grid(
+  monthly_cost,
+  monthly_claims,
+  monthly_ratio,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.3.2 Cost - Vehicle                          #
+#########################################################
+
+# Cost Policy Ratio compared to Power, Value_vehicle, Age and Driving_age
+cost_policy_ratio <- function(x_var) {
+  train_set %>%
+    mutate(Power = floor(train_set$Power / 10) * 10,
+           Value_vehicle = floor(train_set$Value_vehicle / 1000) * 1000,) %>%
+    select(ID, Year, !!sym(x_var), N_claims_year, Cost_claims_year) %>%
     group_by(Year, !!sym(x_var)) %>%
-    summarize(Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
+    summarize(Total_cost = sum(Cost_claims_year, na.rm = TRUE),
               #              Nb_claims = sum(N_claims_year, na.rm = TRUE),
               Nb_policies = n(),
               .groups = 'drop') %>%
     mutate(Year = as.factor(Year),
-           Claim_Policy_Ratio = Nb_policy_claims / Nb_policies) %>%
-#    filter(Nb_policies > 1) %>%
-    ggplot(aes_string(x = x_var, y = "Claim_Policy_Ratio", color = "Year")) +
+           Cost_Policy_Ratio = Total_cost / Nb_policies) %>%
+    ggplot(aes_string(x = x_var, y = "Cost_Policy_Ratio", color = "Year")) +
     geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
-    labs(x = x_var, y = "Claim Policy Ratio") +
-    xlim(0, x_max) +
+    labs(x = x_var, y = "Cost Policy Ratio") +
     ylim(0, NA) +
     theme_minimal() +
     theme(text = element_text(size = 9), legend.position = "top")
 }
 
 # Number of Policies compared to Power, Value_vehicle, Age and Driving_age
-nb_policies <- function(insurance_data, x_var, x_max) {
-  insurance_data %>%
-    select(ID, Year = Year_last_renewal, !!sym(x_var), N_claims_year) %>%
+nb_policies <- function(x_var) {
+  train_set %>%
+    mutate(Power = floor(train_set$Power / 10) * 10,
+           Value_vehicle = floor(train_set$Value_vehicle / 1000) * 1000,) %>%
+    select(ID, Year, !!sym(x_var), N_claims_year) %>%
     group_by(Year, !!sym(x_var)) %>%
     summarize(Nb_policies = n(),
               .groups = 'drop') %>%
@@ -358,29 +812,96 @@ nb_policies <- function(insurance_data, x_var, x_max) {
     ggplot(aes_string(x = x_var, y = "Nb_policies", color = "Year")) +
     geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
     labs(x = x_var, y = "Nb Policies") +
-    xlim(0, x_max) +
     ylim(0, NA) +
     theme_minimal() +
     theme(text = element_text(size = 9), legend.position = "top")
 }
 
 plot_grid(
-  claim_policy_ratio(insurance_data, "Power", 250),
-  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
-  nb_policies(insurance_data, "Power", 250),
-  nb_policies(insurance_data, "Value_vehicle", 60000),
-  #  claim_policy_ratio(insurance_data, "Age"),
-  #  claim_policy_ratio(insurance_data, "Driving_age"),
-  #  claim_policy_ratio(insurance_data, "Premium"),
-  #  claim_policy_ratio(insurance_data, "Seniority"),
+  nb_policies("Power"),
+  nb_policies("Value_vehicle"),
+  cost_policy_ratio("Power"),
+  cost_policy_ratio("Value_vehicle"),
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 
+#########################################################
+#         X. Following                                  #
+#########################################################
+
+##########################
+# TODO
 
 
 
 
 
+
+
+
+
+#########################################################
+#         2. Claims Summary                             #
+#########################################################
+
+#########################################################
+#         3. Distributions                              #
+#########################################################
+
+
+
+#########################################################
+#         3. Data Analysis                              #
+#########################################################
+
+
+
+
+##############################
+
+
+
+#########################################################
+#         3.1 Correlation matrix                        #
+#########################################################
+
+
+
+
+#########################################################
+#         3.2 Cost                                      #
+#########################################################
+
+# Super slow :
+#insurance_data %>%
+#  filter(R_Claims_history < 5 & Cost_claims_year < 10000) %>%
+#  ggplot(aes(x = R_Claims_history, y = Cost_claims_year)) +
+#  geom_point(color = "darkblue") +
+#  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+#  labs(x = "R_Claims_history", y = "Cost_claims_year") +
+#  theme_minimal() +
+#  theme(text = element_text(size = 9))
+
+#########################################################
+#         3.2 Claim Policy Ratios                       #
+#########################################################
+
+
+# Second driver
+insurance_data %>%
+  select(ID, Year, Second_driver, Age) %>%
+  group_by(Year, Age) %>%
+  summarise(
+    Second_Driver = sum(Second_driver) / n(),
+    .groups = 'drop') %>%
+  mutate(Year = as.factor(Year)) %>%
+  ggplot(aes_string(x = "Age", y = "Second_Driver", color = "Year")) +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Age", y = "Second_Driver") +
+  xlim(0, NA) +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
 
 #########################################################
 #         3.2 Claims : previous claims                  #
@@ -417,15 +938,91 @@ claims_summary <- claims_data %>%
 claims_summary
 
 # Risk of Raising a New Claim based on number of claims raised during the year
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 15) %>%
+claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
   ggplot(aes(x = Nb_claims, y = percentage)) +
   geom_point() +
   geom_smooth(method = "loess", formula = y ~ x) +
-  labs(title = "Risk of Raising a New Claim",
-       x = "Number of Previous Claims",
+  labs(x = "Number of Previous Claims",
        y = "Risk (%)") +
   theme_minimal() +
   theme(text = element_text(size = 9))
+
+# Risk of Raising a New Claim based on number of claims raised during the year :
+# Comparison between years
+claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
+  mutate(Year = as.factor(Year_last_renewal)) %>%
+  ggplot(aes(x = Nb_claims, y = percentage, color = Year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  labs(x = "Number of Previous Claims",
+       y = "Risk (%)") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Risk of Raising a New Claim based on history (total claims raised)
+# We only display data for 2017 (last full year)
+risk_summary <- insurance_data %>%
+  group_by(Year_last_renewal) %>%
+  select(Year_last_renewal, ID, N_claims_year, Cost_claims_year, N_claims_history, R_Claims_history)
+
+# Calculate average N_claims_year by N_claims_history
+avg_claims_N_hist <- risk_summary %>%
+  group_by(N_claims_history) %>%
+  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "N_claims_history",
+       y = "Avg N_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average N_claims_year by R_Claims_history
+avg_claims_R_hist <- risk_summary %>%
+  filter(R_Claims_history < 10) %>%
+  group_by(R_Claims_history) %>%
+  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "R_Claims_history",
+       y = "Avg N_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average Cost_claims_year by N_claims_history
+avg_cost_N_hist <- risk_summary %>%
+  group_by(N_claims_history) %>%
+  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "N_claims_history",
+       y = "Avg Cost_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average Cost_claims_year by R_Claims_history
+avg_cost_R_hist <- risk_summary %>%
+  filter(R_Claims_history < 10) %>%
+  group_by(R_Claims_history) %>%
+  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "R_Claims_history",
+       y = "Avg Cost_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Plot the 4 different graphs :
+plot_grid(
+  avg_claims_N_hist,
+  avg_claims_R_hist,
+  avg_cost_N_hist,
+  avg_cost_R_hist,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
 
 # Risk of Raising a New Claim based on history (total claims raised)
 # We only display data for 2017 (last full year)

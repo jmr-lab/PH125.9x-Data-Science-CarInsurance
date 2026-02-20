@@ -14,6 +14,8 @@ header-includes:
   - \SetWatermarkScale{1}
   - \SetWatermarkAngle{45}
   - \SetWatermarkColor{gray!10}
+  - \usepackage{etoolbox}
+  - \AtBeginEnvironment{Shaded}{\small}
 urlcolor: blue
 ---
 
@@ -52,23 +54,23 @@ knitr::opts_chunk$set(echo = TRUE)
 
 \newpage
 
-# Introduction
+# 1. Introduction
 
 The insurance industry serves as a critical safety net in today's society, offering a mechanism for individuals and businesses to manage risk. At its core, insurance is a contractual agreement between an insurer and a policyholder, where the insurer provides financial protection against certain risks in exchange for regular payments known as premiums. This mitigates the financial impact of unforeseen events, such as accidents, natural disasters, or health issues, ensuring that policyholders are not left vulnerable in times of need.
 
-## Understanding Car Insurance
+## 1.1 Understanding Car Insurance
 
 Car insurance specifically addresses risks related to vehicle ownership and operation. It provides coverage for damages to the vehicle, bodily injury to the driver or passengers, and third-party liabilities that may arise from motor vehicle accidents. Policies can vary widely, including comprehensive coverage, which protects against theft or damage outside of collisions, and liability coverage that pays for damages to other parties in the event of an accident caused by the policyholder.
 
-## How Insurance Works
+## 1.2 How Insurance Works
 
 The fundamental principle of insurance is risk pooling. By collecting premiums from multiple policyholders, insurance companies can create a reserve fund to cover claims when they arise. The likelihood of individual claims is statistically evaluated, allowing insurers to set premium rates that reflect the risk associated with different policyholders. This system is crucial for maintaining financial stability within the insurance sector, enabling insurers to meet their commitments even in challenging circumstances.
 
-## Impact of the Digital Age
+## 1.3 Impact of the Digital Age
 
 In recent years, the insurance industry has experienced significant transformation due to the digital age. Technologies such as mobile applications, online platforms, and telematics have revolutionized how insurance is marketed, sold, and managed. Customers now enjoy convenience in purchasing policies, accessing services, and making claims through user-friendly digital interfaces.
 
-## The Role of Artificial Intelligence
+## 1.4 The Role of Artificial Intelligence
 
 Among the most influential advancements in the insurance sector is the integration of artificial intelligence (AI) [1]. AI-enhanced systems can analyze vast amounts of data in real-time, improving underwriting processes, claim assessments, and customer service interactions. In car insurance, AI algorithms can evaluate driving behavior through telematics devices, tailoring coverage and pricing based on actual risk rather than historical averages. This not only leads to personalized premium rates but also encourages safer driving habits among policyholders.
 
@@ -76,39 +78,31 @@ Furthermore, AI enables predictive analytics, which empowers insurance companies
 
 \newpage
 
-# Objective
+# 2. Objective
 
-This document represents my final capstone project for the HarvardX Data Science Professional Certificate. Throughout this course, I have acquired valuable skills in data analysis, statistical modeling, and machine learning [2]. This project aims to apply those skills within the insurance industry by examining various predictive aspects related to car insurance.
+This document outlines my final capstone project for the HarvardX Data Science Professional Certificate. Throughout the course, I have developed essential skills in data analysis, statistical modeling, and machine learning techniques, all of which can be found in the accompanying Data Science book [2]. This project aims to apply these skills within the insurance industry, focusing specifically on predicting insurance costs.
 
-The primary focus of this report is to utilize machine learning tools to predict several key aspects of car insurance, specifically the costs associated with insurance policies, the number of claims, and customer loyalty. By integrating theoretical knowledge with practical applications, I seek to demonstrate my proficiency and understanding gained during the course. Harnessing advanced algorithms and data analytics, this project aspires to deliver insightful predictions that account for multiple risk factors impacting policyholders and their individual situations.
+The primary goal of this report is to leverage machine learning tools to forecast the costs associated with car insurance policies. By integrating theoretical knowledge with practical applications, I aim to demonstrate my proficiency and understanding acquired during the course. Utilizing advanced algorithms and data analytics, this project aspires to provide insightful predictions, taking into account various risk factors that may affect the costs faced by policyholders.
 
-## Claims Prediction
+## 2.1 Cost Prediction
 
-Understanding the number of claims a policyholder is likely to make is crucial for insurers. The frequency and severity of claims directly influence the overall cost of insurance, as a history of frequent claims generally categorizes an individual as a higher risk. By predicting the number of claims accurately, insurers can better manage their risk profiles and set more precise premiums.
+Predicting insurance costs is pivotal for both insurers and policyholders, as these costs can vary significantly based on multiple factors, including the type of coverage selected and the individual’s claims history. For instance, comprehensive coverage often incurs higher premiums compared to basic liability coverage due to its broader scope of protection. This section will employ machine learning algorithms to forecast insurance costs by analyzing several contributing factors that align with policyholders’ unique risk profiles.
 
-## Cost Prediction
+## 2.2 Data Limitations
 
-The cost of insurance can vary significantly based on several factors, including the type of coverage selected and the individual’s claims history. For example, comprehensive coverage, which protects against various risks beyond mere collisions, typically incurs higher premiums compared to basic liability coverage. This section will utilize machine learning algorithms to forecast insurance costs by analyzing different contributing factors aligned with policyholders’ unique risk profiles.
-
-## Customer Fidelity
-
-Customer fidelity plays a pivotal role in influencing insurance costs. Research indicates that policyholders who maintain their insurance over extended periods are often rewarded with lower premiums. Insurers perceive long-term relationships as indicative of lower risk based on more stable claims histories and overall customer loyalty. This section will explore metrics that assess customer fidelity and its impact on insurance pricing.
-
-## Data Limitations
-
-Despite the ambition to create a robust predictive model, this project faces notable data limitations. The dataset contains limited demographic and policy-related information, and the timeframe includes only 4 to 5 years of data. These constraints can hinder accurate assessments of early termination risk and comprehensive customer profiling. Nevertheless, the goal remains to maximize the use of available data, focusing on the most relevant features to offer meaningful insights into insurance costs and risk assessment in subsequent applications.
+While striving to create a robust predictive model for insurance costs, this project faces certain data limitations. The dataset provides limited demographic and policy-related information, and it encompasses only a timeframe of 4 to 5 years of data. These constraints may affect the precision of the cost predictions and the overall robustness of the model. Nevertheless, the goal is to maximize the utilization of available data, concentrating on the most relevant features to derive meaningful insights into insurance costs and risk assessment.
 
 \newpage
 
-# Dataset
+# 3. Dataset
 
-## The Rarity of Open Datasets in the Insurance Sector
+## 3.1 The Rarity of Open Datasets in the Insurance Sector
 
 Open datasets in the insurance industry are relatively scarce due to the highly sensitive nature of the information they contain. Insurance companies manage vast amounts of personal and financial data, which, if exposed, could compromise individual privacy and lead to significant legal consequences. The insurance sector is also heavily regulated, requiring strict compliance with data protection laws, such as GDPR in Europe. This regulatory framework makes insurers particularly cautious about sharing their data publicly.
 
-Furthermore, insurance data is often perceived as a competitive advantage. Companies are reluctant to disclose their datasets, fearing that it could reveal proprietary algorithms and models designed for specific underwriting processes and claims assessments. As a result, high-quality open datasets that could significantly contribute to academic and research endeavors are limited.
+Furthermore, insurance data is often perceived as a competitive advantage. Companies are reluctant to disclose their datasets, fearing that it could reveal proprietary algorithms and models designed for specific underwriting processes and claims assessments. As a result, high-quality open datasets that could significantly contribute to academic and research endeavours are limited.
 
-## Selected Dataset
+## 3.2 Selected Dataset
 
 Given these challenges, the dataset I have selected for analysis is exceptional due to its comprehensive nature and applicability in evaluating AI-driven cost prediction models in the car insurance sector. This dataset originates from a **Spanish insurance company that specializes in non-life insurance**.
 
@@ -116,29 +110,37 @@ While the dataset does include some policyholder demographic information, it is 
 
 Accessing such a dataset is valuable as it allows for the exploration of correlations and trends relevant to AI-driven cost predictors. The dataset is publicly available at the Mendeley Data website [3], but to ensure its continued accessibility, I have also copied the dataset to my GitHub repository [4]. This redundancy will ensure that the dataset remains available even if the original website removes it. This data is an important resource for understanding the complexities of car insurance and enables the application of predictive analytics in this domain. Through this analysis, I aim to uncover insights that will enhance the development and implementation of AI-driven cost models in insurance.
 
-## Files
+## 3.3 Files
 
 The dataset is organized as three different files : a spreadsheet and two comma-separated value files.
 
-> `r fa("file-excel", fill = "forestgreen")` Descriptive of the variables.xlsx
-
-> `r fa("file-csv", fill = "forestgreen")` Motor vehicle insurance data.csv
-
-> `r fa("file-csv", fill = "forestgreen")` sample type claim.csv
-
-The main dataset is in the "Motor vehicle insurance data.csv" file, comprising **105,555 observations** across **30 variables**. Each row within the dataset corresponds to an individual insurance policy recorded over a specific year, covering the period from **November 2015 to December 2018**.
-
 ```{r, echo=FALSE}
-kbl(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+dataset_files <- data.frame(
+  icons = c(
+    "\\includegraphics[width=0.5cm]{file-excel.png}",
+    "\\includegraphics[width=0.5cm]{file-csv.png}",
+    "\\includegraphics[width=0.5cm]{file-csv.png}"
+  ),
+  filename = c(
+    "Descriptive of the variables.xlsx",
+    "Motor vehicle insurance data.csv",
+    "Sample type claim.csv"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(dataset_files, format = "latex", booktabs = TRUE, linesep = "", escape = FALSE, col.names = c("", "Dataset Files")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The spreadsheet "Descriptive of the variables.xlsx" contains a list of the variables and their description.
+The spreadsheet **"Descriptive of the variables.xlsx"** contains a list of the variables and their description.
 
-The last file "sample type claim.csv" contains a list of different claims. It has 7,366 observations or claims while the main dataset contains 19,646 observations with at least one claim.
+The main dataset is in the "Motor vehicle insurance data.csv" file, comprising **105,555 observations** across **30 variables**. Each row within the dataset corresponds to an individual insurance policy recorded over a specific year, covering the period from **November 2015 to December 2018**.
+
+The last file **"sample type claim.csv"** contains a list of different claims. It has 7,366 observations or claims while the main dataset contains 19,646 observations with at least one claim.
 As its name suggests, it is a sample and won't be useful for the rest of the analysis.
 
-## Structure
+## 3.4 Structure
 
 The table below is based on the "Descriptive of the variables" spreadsheet, indicating the different variables present in the dataset.
 
@@ -150,29 +152,169 @@ kbl(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = li
 
 This table indicates that we have very limited information about the policyholder (or driver). Specifically, we only possess details regarding their age, the duration of their driving licence, the type of car they are driving, and their geographic area. However, we lack critical information such as gender, occupation, and income. In contrast, we have more comprehensive details about the car itself, including its power, number of doors, length, and weight, but we do not have the make or model. Additionally, we have some information related to the insurance policy.
 
-\newpage
+## 3.5 Background
 
-# Exploratory Data Analysis
+Between 2015 and 2018, the number of car accidents in Spain witnessed a notable decrease, reflecting the effectiveness of various road safety measures and legislative changes implemented during this period. Reports indicate that Spain achieved a 27% reduction in fatalities, contributing to a broader EU target of halving fatal road accident victims by 2020.
 
-## Distribution
+This improvement can be attributed to several factors, including enhancements in traffic laws, public awareness campaigns, and infrastructure investments, as outlined in the table below. For further insights into these trends and statistics, refer to the following sources: EU Target Report (iRAP) [3] and the EuroRAP National Road Safety Profile - Spain [4].
 
-Here is a summary of the variables associated with the drivers :
+The following is a list of significant events and laws in Spain during the 2010s that may have contributed to a reduction in car accidents :
 
 ```{r, echo=FALSE}
-driver_summary %>%
-  kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
-  kable_styling(font_size = 9, latex_options = c("hold_position"))
+road_events <- data.frame(
+  Year = c(2011, 2014, 2014, 2016, 2016, 2019, 2019),
+  Event_Law = c("Traffic Act Reforms",
+                "Introduction of the 'Zero Alcohol' Law",
+                "Raúl's Law",
+                "Compulsory Use of Seat Belts",
+                "New Road Safety Campaigns",
+                "Update of Traffic Regulations (Royal Decree 1428/2003)",
+                "Reduction of Speed Limits in Urban Areas"),
+  Description = c("Enhanced penalties for driving infractions, focusing on speeding, alcohol, and drugs.",
+                  "Aimed at reducing drunk driving, particularly for novice drivers and underage individuals.",
+                  "Increased penalties for hit-and-run offenses and harsher consequences for reckless driving.",
+                  "Stricter enforcement and educational campaigns to ensure seat belt use for all passengers.",
+                  "Initiatives focusing on pedestrian safety and education about safe driving practices.",
+                  "Included measures to improve road safety and enforcement of traffic laws.",
+                  "Lowered speed limits in city areas, aimed at reducing accidents involving pedestrians.")
+)
+kbl(road_events, format = "latex", booktabs = TRUE, linesep = "") %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2, width = "5cm") %>%
+  column_spec(3, width = "10cm")
 ```
 
-The date of birth ranges from April 5, 1918 to October 11, 2000, indicating that the drivers cover a wide span of ages, with most being born between 1960 and 1980. This suggests that the dataset includes both older and relatively newer drivers, allowing for an analysis of trends across different age groups.
+\newpage
 
-The date of driving license acquisition varies from October 1, 1942 to November 26, 2018, indicating that some drivers have held their licenses for many decades, while others are more recent license holders.
+# 4. Data Transformation
 
-Seniority ranges from 1 to 40 years, with an average of about 6.7 years. This suggests a mix of novice and experienced policyholders, although the median seniority of 4 years indicates that many drivers are relatively new to their insurance policies.
+To proceed with our analysis effectively, it is crucial to transform our dataset to enhance its usability. The steps involved in this transformation are outlined below:
 
-The area variable is binary, indicating whether the drivers are located in urban (1) or rural (0) settings. Approximately 27.39% of drivers reside in urban areas, highlighting a predominance of rural drivers in the dataset. 
+## 4.1 Formatting Dates
 
-Lastly, the second driver variable shows that only about 12.37% of the drivers have a secondary driver listed, indicating that most operate their vehicle independently.
+First, it is essential to ensure that all date fields in our dataset are correctly formatted as date objects. In R, this allows for easier manipulation and calculations involving dates, such as comparisons or date arithmetic. This step will enable us to:
+
+- Perform date calculations more intuitively.
+- Filter or subset data based on date criteria.
+- Visualize trends over time more effectively.
+
+## 4.2 Removing Redundant Columns
+
+Next, we will remove the Date_next_renewal column from our dataset. This column contains dates that are exactly one year after the Date_last_renewal. As this information is redundant, keeping it does not add any value to our analysis.
+
+## 4.3 Extracting the Current Year
+
+We will use the year derived from the Date_last_renewal column to establish the current year for our analysis. This approach provides:
+
+- A consistent reference point for evaluating policy conditions and year-over-year changes.
+- A clearer framework for understanding the lifecycle of each policy.
+
+## 4.4 Revising Claims Historical Data
+
+N_claims_history and R_Claims_history are two values related to the number of claims filed throughout the **entire duration** of the insurance policy.
+
+As we want to see the evolution year by year, we want to re calculate these values to use the number of claims filed **before** the current year.
+
+Retaining only past claims ensures that our analysis focuses on historical performance rather than including current, ongoing claims. This filtering allows us to:
+
+- Better assess historical risk and claim trends without current influences.
+- Generate more accurate forecasts based on past behaviours.
+
+\newpage
+
+During the calculations, we identified some data inconsistencies. For example :
+
+- ID 12 shows 12 total claims raised, but only 8 in the history column,
+- ID 18 has an R_Claims_history of 0.36, which suggests 9 claims over 25 years, rather than 7.2 over 20 years :
+
+```{r, echo=FALSE}
+kable(data_problem_sample, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_problem_sample), width = "2cm")
+```
+
+## 4.5 Split the data
+
+Lastly, to effectively analyse the insurance claims data related to car accidents from 2015 to 2018, we will split the dataset into training and testing subsets.
+
+We will retain all data up until August 2018 for the training set, allowing us to develop and optimize an algorithm designed to predict insurance costs.
+
+The remaining data from September 2018 onwards will be designated as the test set.
+
+This approach ensures that approximately 90% of the data is used for training, while the test set comprises around 10%.
+
+```{r, eval=FALSE}
+# Define the cutoff date
+cutoff_date <- as.Date("2018-09-01")
+
+# Create train_set
+train_set <- insurance_data %>%
+  filter(Date_last_renewal < cutoff_date)
+
+# and test_set
+test_set <- insurance_data %>%
+  filter(Date_last_renewal >= cutoff_date)
+```
+
+For subsequent analyses and predictions, we will utilize the training set.
+
+\newpage
+
+# 5. Exploratory Data Analysis
+
+## 5.1 Distribution
+
+### 5.1.1 Timeline
+
+Understanding the evolution of our insurance portfolio is crucial for analyzing the number of different policies per year, alongside the total number of policies across the years. This timeline enables us to grasp trends, identify peak activity periods, and assess changes in business dynamics over time.
+
+The following table summarizes the data regarding the number of policies for each year, highlighting key trends and variations :
+
+```{r, echo=FALSE}
+kable(insurance_year, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(1, width = "0.5cm") %>%
+  column_spec(2:ncol(insurance_year), width = "2cm")
+```
+
+In 2015, we recorded only **4,559** policies, as the data starts from November of that year. In **2016**, the number of unique policies rose to **31,428**. This growth continued in **2017**, reaching **33,753** unique policies, and further increased in **2018** to a total of **25,621** unique IDs in only 8 months.
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Number of policies (Total and with claims) over the years", fig.width=6, fig.height=3}
+plot_grid(
+  timeline_policies_claims,
+  timeline_cost,
+  ncol = 2, align = 'hv'
+)
+```
+
+\newpage
+
+The table below shows the new and terminating policies per year, as well as the related claim proportions :
+
+```{r, echo=FALSE}
+kable(insurance_mv, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(1, width = "0.5cm") %>%
+  column_spec(2:ncol(insurance_mv), width = "2.2cm")
+```
+
+This data provides a comprehensive overview of policy trends over the four-year period from 2015 to 2018, detailing total policies, new and terminating policies, and their associated claims proportions. Notably, much of the data originates from pre-existing policies (created before 2015) that were likely added later to the dataset.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Power and Value Vehicle", fig.width=6, fig.height=3}
+plot_grid(
+  timeline_nb_policies,
+  timeline_r_policies_claim,
+  ncol = 2, align = 'hv'
+)
+```
+
+In 2015, the breakdown showed 4,559 total policies, comprised of 1,112 new policies introduced and 756 terminating policies. Approximately 30% of all policies had claims, indicating a substantial level of risk among these policies. Particularly noteworthy is that 41.7% of new policies filed claims, reflecting a high incidence of claims within these newly established contracts. In contrast, only 0.3% of terminating policies had claims, suggesting a much lower risk level as these contracts concluded.
+
+As the years progressed, the total number of policies sharply increased, peaking at 35,815 in 2018. However, the proportion of policies with claims demonstrated a downward trend, lowering to 9.5% by 2018. This decline may indicate improvements in risk management, underwriting criteria, or policyholder behaviour over time. For new policies, the proportion of claims also saw a decrease to 18.2%, which points to either a change in the nature of the new policies or a more cautious approach in their issuance. Conversely, termination policies consistently reported low claims rates, peaking at 4.4% in 2016 but remaining low overall, suggesting that most terminating policies were relatively risk-free by the time they concluded.
+
+\newpage
+
+### 5.1.2 Vehicle
 
 We have some additional variables related to the vehicles :
 
@@ -188,9 +330,51 @@ car_summary_2 %>%
 
 The number of doors on the cars ranges from 0 to 6, with a median of 5 doors and an average of approximately 4.07, suggesting that most vehicles are likely standard sedans or hatchbacks. The power output varies significantly, from a minimum of 0 to a maximum of 580 horsepower, with a mean of 92.68. This indicates a diverse range of vehicle types, from compact cars to high-performance models. The cylinder capacity ranges from 49 to 7480 cubic centimeters, with an average of 1618 cm³, reflecting varying engine sizes suited to different performance needs and fuel types.
 
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Power and Value Vehicle", fig.width=6, fig.height=2}
+plot_grid(
+  distribution_power,
+  distribution_value,
+  ncol = 2, align = 'hv'
+)
+```
+
 When examining fuel types, a significant majority of cars in the dataset use diesel (D), with 64,998 instances, while 38,793 vehicles are powered by petrol (P), and 1,764 entries have missing data for fuel type. The length of the vehicles spans from 1.978 to 8.218 meters, with a mean length of approximately 4.25, indicating a prevalence of standard-sized cars. The weight ranges from 43 to 7300 kilograms, with a mean of 1191 kg, suggesting that the dataset includes both lightweight cars and heavier vehicles, potentially such as vans or trucks.
 
 In terms of year of matriculation, the cars range from models dated 1950 to 2018, with a mean and median year around 2005, indicating that the dataset covers both classic and more modern vehicles. Finally, there is a wide variance in the value of the vehicles, with a minimum of approximately 270.5 and a maximum of around 220,675.8. The average vehicle value is approximately 18,413.7, reflecting a mixture of economical and luxury cars in the collection.
+
+### 5.1.3 Policy Holder
+
+Here is a summary of the variables associated with the policy holders :
+
+```{r, echo=FALSE}
+driver_summary %>%
+  kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+The date of birth ranges from April 5, 1918 to October 11, 2000, indicating that the drivers cover a wide span of ages, with most being born between 1960 and 1980. This suggests that the dataset includes both older and relatively newer drivers, allowing for an analysis of trends across different age groups.
+
+The date of driving license acquisition varies from October 1, 1942 to November 26, 2018, indicating that some drivers have held their licenses for many decades, while others are more recent license holders.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Ages and Driving ages", fig.width=6, fig.height=2}
+plot_grid(
+  distribution_dob,
+  distribution_licence_age,
+  ncol = 2, align = 'hv'
+)
+```
+
+Note that while policy holder details and demographic may have been removed to comply with GDPR and obvious privacy reasons, the combination date of birth - date of driving licence could potentially help identify someone. While this is not the purpose of this paper, a study found that it's possible to identify a person based only on gender, date of birth and postcode [5].
+
+Seniority ranges from 1 to 40 years, with an average of about 6.7 years. This suggests a mix of novice and experienced policyholders, although the median seniority of 4 years indicates that many drivers are relatively new to their insurance policies.
+
+The area variable is binary, indicating whether the drivers are located in urban (1) or rural (0) settings. Approximately 27.39% of drivers reside in urban areas, highlighting a predominance of rural drivers in the dataset. 
+
+Lastly, the second driver variable shows that only about 12.37% of the drivers have a secondary driver listed, indicating that most operate their vehicle independently.
+
+\newpage
+
+### 5.1.4 Policy Details
 
 Now the policy details :
 
@@ -198,11 +382,19 @@ Now the policy details :
 policy_summary_1 %>%
   kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
 
+The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from October 25, 1980, to November 30, 2018, with a mean date around June 26, 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being November 2, 2015, and the latest also being November 30, 2018, implying regular renewals among many policies. The next renewal dates range from November 2, 2016, to November 30, 2019, with a mean of June 19, 2018, highlighting trends in customer retention and policy renewals.
+
+```{r, echo=FALSE}
 policy_summary_2 %>%
   kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
 
+Most policyholders maintain 1 to 2 policies, although some hold up to 17 policies, indicating that while many keep a single insurance policy, there are individuals with multiple coverages. The number of claims per policy varies, with a maximum of 25 claims per year and an average of about 0.39 claims, suggesting that most policyholders do not frequently file claims. The cost of claims ranges from 0 to approximately 260,853.2, with an average claim cost around 153.6, indicating that many claims are not high-cost but there are outliers with significant expenses.
+
+```{r, echo=FALSE}
 policy_summary_3 %>%
   kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
@@ -212,43 +404,25 @@ policy_summary_4 %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from October 25, 1980, to November 30, 2018, with a mean date around June 26, 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being November 2, 2015, and the latest also being November 30, 2018, implying regular renewals among many policies. The next renewal dates range from November 2, 2016, to November 30, 2019, with a mean of June 19, 2018, highlighting trends in customer retention and policy renewals.
-
-Most policyholders maintain 1 to 2 policies, although some hold up to 17 policies, indicating that while many keep a single insurance policy, there are individuals with multiple coverages. The number of claims per policy varies, with a maximum of 25 claims per year and an average of about 0.39 claims, suggesting that most policyholders do not frequently file claims. The cost of claims ranges from 0 to approximately 260,853.2, with an average claim cost around 153.6, indicating that many claims are not high-cost but there are outliers with significant expenses.
-
 Premium costs span from approximately 40.14 to 2,993.34, with a mean premium of about 315.89, reflecting the variety of coverage levels available. The type of risk associated with the policies corresponds to specific vehicle categories: 1 for motorbikes, 2 for vans, 3 for passenger cars, and 4 for agricultural vehicles, with a predominance of risk type 3 (passenger cars) in the dataset.
 
-## Policies
-
-Number of different policies per year and total :
-
-```{r, echo=FALSE}
-kable(insurance_year, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
-  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
-  row_spec(nrow(insurance_year), bold = TRUE)
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Nb Policies and Type Risk", fig.width=6, fig.height=4}
+plot_grid(
+  distribution_nb_policies,
+  distribution_type_risk,
+  distribution_premium,
+  distribution_claims,
+  ncol = 2, align = 'hv'
+)
 ```
-
-In 2015, we recorded only **4,559** policies, as the data starts from November of that year. In **2016**, the number of unique policies rose to **31,428**. This growth continued in **2017**, reaching **33,753** unique policies, and further increased in **2018** to a total of **35,815** unique IDs. Overall, the total number of unique policies renewed across these four years amounts to **53,502**.
-
-```{r, echo=FALSE}
-kable(insurance_mv, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
-  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
-  column_spec(1:ncol(insurance_mv), width = "1.8cm")
-```
-
-The data provides a comprehensive overview of policy trends over a four-year period from 2015 to 2018, detailing total policies, new and terminating policies, and their associated claims proportions. We can see that most of the data come from pre existing policies (created years before 2015) probably loaded later in the dataset.
-
-In 2015, there were 4,559 total policies, with 1,112 new policies introduced and 756 terminating policies. The proportion of all policies with claims was about 30%, suggesting a significant level of risk or incidents among these policies. Notably, 41.7% of new policies in 2015 filed claims, indicating a relatively high incidence of claims within newly established contracts. In contrast, only 0.3% of terminating policies had claims, highlighting a considerably lower risk level as these contracts concluded.
-
-As the years progressed, total policies saw a sharp increase, peaking at 35,815 in 2018. The proportion of policies with claims, however, revealed a downward trend, falling to 9.5% by 2018. This decline in overall claims might suggest improvements in risk management, underwriting criteria, or policyholder behavior over the years. The proportion of claims among new policies also decreased to 18.2%, reflecting a shift in either the nature of the new policies or a more cautious approach in their issuance. In contrast, the termination policies consistently filed claims at very low rates, peaking at 4.4% in 2016 but remaining low overall, which may indicate that most terminating policies were risk-free by their end.
 
 \newpage
 
-## Correlations
+## 5.2 Correlations
 
 As we have 30 variables, a correlation matrix may be difficult to look at and to interpret. We need first to determine which variables are the most interesting to study and to keep.
 
-For example Date_last_renewal and Date_next_renewal are highly correlated as they are set apart by exactly one year, so for the rest of the study we will only consider Date_last_renewal.
+### 5.2.1 Vehicle
 
 The Length and Weight of a vehicle are also correlated enough (0.83) so we won't use the Length in the matrix, especially since it has many NA values.
 
@@ -262,7 +436,7 @@ ggcorrplot(correlation_matrix_car,
   theme(
     axis.text.x = element_text(size = 8),
     axis.text.y = element_text(size = 8),
-    legend.position = "top"
+    legend.position = "right"
   )
 ```
 
@@ -270,6 +444,22 @@ The correlation matrix indicates that the car-related variables (Power, Cylinder
 Additionally, the Premium variable shows significant correlation with these variables. A notable correlation also exists between Driving_age and Age, which can be explained by the fact that most people take their driving licence at the same age, around 20.
 
 Surprisingly the variables associated with claims (N_claims_year, and Cost_claims_year) show lower correlations with Premium or vehicle related characteristics.
+
+The following plots show the correlation between the value of a vehicle and its power, and the premium vs value :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Correlation Plots", fig.height=4}
+plot_grid(
+  corplot_power,
+  corplot_premium,
+  corplot_driving_age,
+  corplot_age,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+```
+
+\newpage
+
+### 5.2.2 Matrix
 
 The second matrix will show correlations between policy variables and Power, Value_vehicle and Type_risk. Once again, the highest correlations are at the top-right :
 
@@ -281,7 +471,7 @@ ggcorrplot(correlation_matrix_policy,
   theme(
     axis.text.x = element_text(size = 8),
     axis.text.y = element_text(size = 8),
-    legend.position = "top"
+    legend.position = "right"
   )
 ```
 
@@ -290,6 +480,8 @@ Strong positive correlations include the relationship between Power and Value_ve
 Conversely, the matrix reveals strong negative correlations, notably between Seniority and Date_start_contract (-0.678). This suggests that individuals with longer seniority tend to start their contracts earlier. Additionally, the correlation between Lapse and Date_lapse (-0.557) highlights that a higher lapse rate correlates with a longer duration since the last lapse occurred. 
 
 \newpage
+
+### 5.2.2 Claims
 
 The figure below shows the correlation between N_claims_year (number of claims in a year), Cost_claims_year (total cost in a year) with the other variables. It is an extract of the previous matrix :
 
@@ -310,162 +502,46 @@ In contrast, Cost_claims_year is positively correlated with N_claims_year at 0.1
 
 \newpage
 
+## 5.3 Cost
+
+### 5.3.1 Timeline
+
+We saw earlier that the yearly cost is somewhat related to the number of claims submitted during the year, and that it also dicreases everery year. Let's see the monthly trend for the cost, number of claims and ration cost per claim :
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Cost and Claims per Month", fig.width=6, fig.height=2}
+plot_grid(
+  monthly_cost,
+  monthly_claims,
+  monthly_ratio,
+  ncol = 3, align = 'hv'
+)
+```
+
+The three plots depict trends in an insurance or claims-related dataset spanning from 2016 to 2018. The Total Cost plot shows a decline in overall expenses over time, suggesting improved management or a reduction in costly claims. Similarly, the Total Claims plot reveals a downward trend in the number of claims filed, indicating fewer incidents or changes in policy that may have contributed to this decrease.
+
+Additionally, the Cost Per Claim (CPC) plot demonstrates a reduction in the costs associated with each claim, reflecting increased efficiency in claims handling or a shift toward lower-severity claims. Through these interconnected trends, it appears that the organization has achieved better control over both the quantity and cost of claims, leading to overall cost reductions during the observed period.
+
+As saw earlier the cost and number of claims are somewhat correlated to the vehicle itself, the driver or policy holder and the policy (especially the history). We will now study how the cost can be affected by the variables associated with them.
+
+\newpage
+
+### 5.3.2 Vehicle
+
 As per correlation matrix suggests, the risk of claims and associated cost is mainly related to the vehicle itself. We will now see how the Power and Value of a vehicle can affect the risk of raising a claim :
 
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Power, Value vehicle, Age and Driving age"}
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Power and Value vehicle", fig.width=6, fig.height=4}
 plot_grid(
-  claim_policy_ratio(insurance_data, "Power", 250),
-  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
-  nb_policies(insurance_data, "Power", 250),
-  nb_policies(insurance_data, "Value_vehicle", 60000),
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+  nb_policies("Power"),
+  nb_policies("Value_vehicle"),
+  cost_policy_ratio("Power"),
+  cost_policy_ratio("Value_vehicle"),
+  ncol = 2, align = 'hv'
 )
 ```
 
 \newpage
 
-The figure below shows the risk for a driver to raise a new claim based on the number of claims already raised. It doesn't factor the claim history, but only the claims raised in a year. We also don't display the risk for number of claims over 20 as the numbers are quite low.
-
-```{r, echo=FALSE, fig.align="center", fig.cap = "Risk of Raising a New Claim", fig.width=5, fig.height=3}
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 15) %>%
-  ggplot(aes(x = Nb_claims, y = percentage)) +
-  geom_point() +
-  geom_smooth(method = "loess", formula = y ~ x) +
-  labs(title = "Risk of Raising a New Claim",
-       x = "Number of Previous Claims",
-       y = "Risk (%)") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-```
-
-The logic is as follow : each driver who raises N claims in a year have necessary raised (N-1) claims in that year before raising the Nth one. If we compare with the number of drivers who raised exactly N-1 claims, we can calculate the proportion of drivers who will raise N claims compared to the total drivers who raised N-1 claims :
-
-\begin{equation}
-\Large
-Risk = \frac{Claims_{n}}{Claims_{n}+Claims_{n-1}}
-\end{equation}
-
-\newpage
-
-If we now plot the number of claims raised in 2017 with the number of previous claims, we see that while there is a slow progression we have 2 trends : people who previously raised some claims and don't raise many new ones (below the blue line), and people who consistently raise new claims (above the blue line).
-
-```{r, echo=FALSE, fig.align="center", fig.cap = "Risk of Raising a New Claim (2017)", fig.width=5, fig.height=3}
-# Risk of Raising a New Claim based on history (total claims raised)
-# We only display data for 2017 (last full year)
-insurance_data %>%
-  group_by(Year_last_renewal) %>%
-  select(Year_last_renewal, ID, N_claims_year, N_claims_history) %>%
-  filter(N_claims_year > 0 & Year_last_renewal == 2017) %>%
-  ggplot(aes(x = N_claims_history, y = N_claims_year)) +
-  geom_point() +
-  geom_smooth(method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Number of claims in 2017") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-```
-
-These two previous graphs may indicate that some people will learn from their mistake and raise less claims when they have a history, and reckless drivers who consistently raise claims.
-
-We now need to distinguish the 2 groups.
-
-\newpage
-
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Power, Value vehicle, Age and Driving age"}
-plot_grid(
-  claim_policy_ratio(insurance_data, "Power", 250),
-  claim_policy_ratio(insurance_data, "Value_vehicle", 60000),
-  claim_policy_ratio(insurance_data, "Age", 80),
-  claim_policy_ratio(insurance_data, "Driving_age", 80),
-#  claim_policy_ratio(insurance_data, "Premium"),
-#  claim_policy_ratio(insurance_data, "Seniority"),
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-  )
-```
-
-The provided plots illustrate the relationship between various factors—power, vehicle value, age, and damage age—and their respective claim ratios over three distinct years.
-
-Upper Left Plot: Power vs. Claim Ratio
-
-The upper left plot shows that power has a significant effect on the claim ratio. As power levels increase, the claim ratio initially rises, peaking at moderate power levels before declining sharply. This suggests that both low-powered and very high-powered vehicles may be less associated with claims, while those in the mid-range may reflect a higher tendency to file claims. The trend remains consistent across the years, highlighting a stable relationship between vehicle power and insurance risk.
-
-Upper Right Plot: Vehicle Value vs. Claim Ratio
-
-In the upper right plot, vehicle value is analyzed against claim ratios. Here, the trend indicates that as vehicle value increases, the claim ratio tends to decline. This negative correlation suggests that more expensive vehicles may be better insured or that drivers of higher-value vehicles are perhaps more cautious, reducing the likelihood of incidents. The year-on-year comparison reveals a consistent downward trend, indicating that this relationship remains stable over time.
-
-Lower Left Plot: Age vs. Claim Ratio
-
-The lower left plot examines the impact of the vehicle's age on claim ratios. Interestingly, there is a clear pattern where newer vehicles generally have higher claim ratios, which may be attributed to the fact that recent models might be driven more often and thus expose them to a greater risk of incidents. As vehicles age, the claim ratio decreases, suggesting that older vehicles might be driven less frequently or perhaps are less involved in accidents, reflecting more cautious driving behavior.
-
-Lower Right Plot: Damage Age vs. Claim Ratio
-
-Lastly, the lower right plot focuses on damage age and its relationship with claim ratios. The graph reveals that as damage age increases, the claim ratio tends to decline. This might imply that older claims are less likely to result in payout when the vehicle has been in service for a longer duration since the initial damage. The trend is consistent across all years, reinforcing that the age of damage has a predictive quality regarding how likely a claim will be submitted.
-
-Overall, these plots collectively enhance our understanding of how various characteristics of vehicles influence the likelihood of claims, providing valuable insights for insurance companies in risk assessment and policy pricing strategies.
-
-\newpage
-
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Cost Policy Ratio compared to Power, Value vehicle, Age and Driving age"}
-plot_grid(
-  cost_policy_ratio(insurance_data, "Power"),
-  cost_policy_ratio(insurance_data, "Value_vehicle"),
-  cost_policy_ratio(insurance_data, "Age"),
-  cost_policy_ratio(insurance_data, "Driving_age"),
-#  cost_policy_ratio(insurance_data, "Premium"),
-#  cost_policy_ratio(insurance_data, "Seniority"),
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-)
-```
-
-The provided plots illustrate the relationship between several vehicle characteristics—Power, Value per Vehicle, Age, and Driving Age—and the Cost per Ratio over multiple years (from 2015 to 2018). Each plot offers insights into how these factors have influenced costs within the given timeframe.
-Top Left Plot: Power vs. Cost per Ratio
-
-In the top left plot, the Power of vehicles shows a dynamic relationship with the Cost per Ratio over the years. As Power increases, the cost initially rises sharply but then exhibits a noticeable decline after reaching a peak. This suggests that while higher-power vehicles may have resulted in increased costs initially, there seems to be a market adjustment leading to lower costs for more powerful vehicles in subsequent years. The lines for different years vary significantly, indicating that the trend in cost related to power has changed over time, possibly due to advancements in technology or changes in consumer preferences.
-Top Right Plot: Value per Vehicle vs. Cost per Ratio
-
-The top right plot focuses on the Value per Vehicle and its correlation with Cost per Ratio. Here, an upward trend is observed across the years, indicating that as the value of vehicles increases, so too does the cost per ratio. This may point to a market trend where more valuable vehicles are associated with higher costs, possibly due to enhanced features or technology. Notably, the line for 2018 remains consistently above those of earlier years, suggesting a continued escalation in costs related to higher-value vehicles.
-Bottom Left Plot: Age vs. Cost per Ratio
-
-In the bottom left plot, Age is examined against the Cost per Ratio. The plot reveals a negative correlation; as the age of vehicles increases, the cost per ratio decreases. This could be attributed to depreciation, where older vehicles naturally carry less value, leading to lower costs. The lines convey a consistent downward trend across all years, emphasizing that age remains a stable predictor of cost efficiency in the automotive market.
-Bottom Right Plot: Driving Age vs. Cost per Ratio
-
-The bottom right plot depicts the relationship between Driving Age and Cost per Ratio. Interestingly, the driving age does not exhibit a significant correlation with cost. The lines converge much more closely than in the other plots, suggesting that changes in driving age have less impact on vehicle costs over the years. This may reflect societal norms around driving, insurance policies, and the relative independence of the driving age from other vehicle characteristics.
-
-\newpage
-
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Area", fig.height=3}
-kable(
-  area_summary %>%
-    select(Year, Area, Nb_policies, Nb_policy_claims, Total_cost),
-  format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
-  kable_styling(font_size = 9, latex_options = c("hold_position"))
-```
-
-The provided data summarizes insurance claims across rural and urban areas from 2015 to 2018. Each entry represents a specific year and area type, detailing the Nb_policy_claims (number of policies with at least one claim), Total_cost (total claims cost), Nb_policies (total number of policies), Claim_Policy_Ratio (ratio of claims to policies), and Cost_Policy_Ratio (ratio of total costs to policies). For instance, in 2015, rural areas had 911 policies with claims, leading to a total cost of 812,282 from a total of 3,177 policies, resulting in a Claim_Policy_Ratio of 0.287 and a Cost_Policy_Ratio of 256. Urban areas in the same year reported 456 claim policies out of 1,382, reflecting slightly higher ratios. Over the years, it is evident that the number of claims in rural areas fluctuated significantly, with notable spikes and declines, suggesting varying insurance activity or risk levels. Overall, the data highlights differences in claim behavior and expenditure trends between rural and urban settings.
-
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Area : Nb of Claims and cost", fig.height=3}
-plot_grid(
-  area_summary %>%
-    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Claim Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
-
-  area_summary %>%
-    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Cost Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
-  
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-)
-```
-
-\newpage
+The following table shows the difference in term of number of policies, claims and cost per type of vehicle (motorbike, van, car or tractor) and per year :
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Area", fig.height=3}
 kable(
@@ -506,6 +582,99 @@ plot_grid(
 
 \newpage
 
+### Policy Holder
+
+We will now see how the policy holder variables can affect the cost :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Age and Driving age", fig.width=6, fig.height=6}
+plot_grid(
+  nb_policies("Age"),
+  nb_policies("Driving_age"),
+  cost_policy_ratio("Age"),
+  cost_policy_ratio("Driving_age"),
+  ncol = 2, align = 'hv'
+)
+```
+
+The left plots examines the impact of the policy holder's age on claim ratios. Interestingly, there is a clear pattern where younger drivers generally have higher claim ratios, which may be attributed to the fact that young drivers might drive more risky and thus expose them to a greater risk of incidents. As drivers age, the claim ratio decreases, suggesting that older policy holder might drive less frequently or perhaps are less involved in accidents, reflecting more cautious driving behaviour.
+
+Lastly, the right plots focuses on driving age and its relationship with claim ratios. The graph reveals that as driving age increases, the claim ratio tends to decline. This might imply that older claims are less likely to result in payout when the vehicle has been in service for a longer duration since the initial damage. The trend is consistent across all years, reinforcing that the age of driving has a predictive quality regarding how likely a claim will be submitted.
+
+\newpage
+
+The figure below shows the risk for a driver to raise a new claim based on the number of claims already raised. It doesn't factor the claim history, but only the claims raised in a year (N_claims_year). We also don't display the risk for number of claims over 20 as the numbers are quite low.
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Risk of Raising a New Claim", fig.width=4, fig.height=3}
+claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 15) %>%
+  ggplot(aes(x = Nb_claims, y = percentage)) +
+  geom_point() +
+  geom_smooth(method = "loess", formula = y ~ x) +
+  labs(x = "Number of Previous Claims",
+       y = "Risk (%)") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+```
+
+The logic is as follow : each driver who raises N claims in a year have necessary raised (N-1) claims in that year before raising the Nth one. If we compare with the number of drivers who raised exactly N-1 claims, we can calculate the proportion of drivers who will raise N claims compared to the total drivers who raised N-1 claims :
+
+\begin{equation}
+Risk = \frac{Claims_{n}}{Claims_{n}+Claims_{n-1}}
+\end{equation}
+
+\newpage
+
+If we now calculate the risks (number of claims and cost of claims for the current year) based on the previous claims (number or ratio) we get the plots below :
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Estimate of Claims or Cost based on History", fig.width=6, fig.height=4}
+plot_grid(
+  avg_claims_N_hist,
+  avg_claims_R_hist,
+  avg_cost_N_hist,
+  avg_cost_R_hist,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+```
+
+\newpage
+
+### Policy
+
+The location the policy holder may affect the cost. Driving in urban areas is generally considered to be more enclined to accidents, and while driving in rural areas should be safer, accidents may be more important and costly.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Area", fig.height=3}
+kable(
+  area_summary %>%
+    select(Year, Area, Nb_policies, Nb_policy_claims, Total_cost),
+  format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+The provided data summarizes insurance claims across rural and urban areas from 2015 to 2018. Each entry represents a specific year and area type, detailing the Nb_policy_claims (number of policies with at least one claim), Total_cost (total claims cost), Nb_policies (total number of policies), Claim_Policy_Ratio (ratio of claims to policies), and Cost_Policy_Ratio (ratio of total costs to policies). For instance, in 2015, rural areas had 911 policies with claims, leading to a total cost of 812,282 from a total of 3,177 policies, resulting in a Claim_Policy_Ratio of 0.287 and a Cost_Policy_Ratio of 256. Urban areas in the same year reported 456 claim policies out of 1,382, reflecting slightly higher ratios. Over the years, it is evident that the number of claims in rural areas fluctuated significantly, with notable spikes and declines, suggesting varying insurance activity or risk levels. Overall, the data highlights differences in claim behavior and expenditure trends between rural and urban settings.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Area : Nb of Claims and cost", fig.height=3}
+plot_grid(
+  area_summary %>%
+    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
+    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
+    labs(x = "Year", y = "Claim Policy Ratio") +
+    ylim(0, NA) +
+    theme_minimal() +
+    theme(text = element_text(size = 9), legend.position = "top"),
+
+  area_summary %>%
+    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
+    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
+    labs(x = "Year", y = "Cost Policy Ratio") +
+    ylim(0, NA) +
+    theme_minimal() +
+    theme(text = element_text(size = 9), legend.position = "top"),
+  
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+```
+
+\newpage
+
 # References
 
 [1] Thomas Poufinas, Periklis Gogas, Theophilos Papadimitriou and Emmanouil Zaganidis. 2023. "Machine Learning in Forecasting Motor Insurance Claims." (Machine Learning and Artificial Intelligence in Non-life Insurance: Theory, Methods and Applications.) https://www.mdpi.com/2227-9091/11/9/164
@@ -516,11 +685,25 @@ plot_grid(
 
 \vspace{10pt}
 
-[3] Josep Lledó, Jose M. Pavía. 2024. “Dataset of an Actual Motor Vehicle Insurance Portfolio.” https://data.mendeley.com/datasets/5cxyb5fp4f/2
+[3] EU Target Report (iRAP). 2020. https://irap.org/2020/01/eu-target-for-reducing-fatal-road-accident-victims-by-50-for-the-un-decade-2010-2020-is-partly-achieved-by-spain-and-catalonia/
 
 \vspace{10pt}
 
-[4] Dataset copied to GitHub. Available at: https://github.com/jmr-lab/PH125.9x-Data-Science-CarInsurance (Accessed: 2026).
+[4] European Commission (2022) National Road Safety Profile
+Spain. Brussels, European Commission, Directorate General for Transport. 2023. https://github.com/jmr-lab/PH125.9x-Data-Science-CarInsurance (Accessed: 2026).
+
+\vspace{10pt}
+
+[5] Josep Lledó, Jose M. Pavía. 2024. “Dataset of an Actual Motor Vehicle Insurance Portfolio.” https://data.mendeley.com/datasets/5cxyb5fp4f/2
+
+\vspace{10pt}
+
+[6] Dataset copied to GitHub. Available at: https://github.com/jmr-lab/PH125.9x-Data-Science-CarInsurance (Accessed: 2026).
+
+\vspace{10pt}
+
+[7] L. Sweeney, Simple Demographics Often Identify People Uniquely. Carnegie Mellon University, Data
+Privacy Working Paper 3. Pittsburgh 2000. https://dataprivacylab.org/projects/identifiability/paper1.pdf
 
 \vspace{10pt}
 
