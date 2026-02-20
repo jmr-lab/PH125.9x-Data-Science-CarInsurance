@@ -358,7 +358,7 @@ The date of driving license acquisition varies from October 1, 1942 to November 
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Ages and Driving ages", fig.width=6, fig.height=2}
 plot_grid(
-  distribution_dob,
+  distribution_age,
   distribution_licence_age,
   ncol = 2, align = 'hv'
 )
@@ -558,31 +558,15 @@ Passenger cars consistently generate the highest number of claims, reflecting th
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Type of Vehicle : Nb of Claims and cost", fig.height=3}
 # Claim Policy Ratio compared to Type Risk : Nb of Claims and cost
 plot_grid(
-  type_risk_summary %>%
-    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Type_risk)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(x = "Year", y = "Claim Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top") +
-    guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE)),
-  
-  type_risk_summary %>%
-    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Type_risk)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(x = "Year", y = "Cost Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top") +
-    guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE)),
-  
+  type_risk_claim_policy_ratio,
+  type_risk_cost_policy_ratio,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 ```
 
 \newpage
 
-### Policy Holder
+### 5.3.3 Policy Holder
 
 We will now see how the policy holder variables can affect the cost :
 
@@ -637,7 +621,7 @@ plot_grid(
 
 \newpage
 
-### Policy
+### 5.3.4 Policy
 
 The location the policy holder may affect the cost. Driving in urban areas is generally considered to be more enclined to accidents, and while driving in rural areas should be safer, accidents may be more important and costly.
 

@@ -416,30 +416,23 @@ plot_grid(
 #########################################################
 #         5.1.3 Policy Holder                           #
 #########################################################
-
+train_set
 # Summary of the driver details
 driver_summary <- train_set %>%
-  select("Date_birth", "Date_driving_licence", "Seniority", "Area", "Second_driver") %>%
+  select("Age", "Driving_age", "Seniority", "Area", "Second_driver") %>%
   summary()
 driver_summary
 
-# Distribution of dates of birth :
-Year_birth <- format(train_set$Date_birth, "%Y")
-distribution_dob <- ggplot(train_set, aes(x = Year_birth)) +
+# Distribution of ages :
+distribution_age <- ggplot(train_set, aes(x = Age)) +
   geom_bar(fill="darkblue", alpha = 0.8) +
-  labs(x = "Year of Birth",
+  labs(x = "Age",
        y = "Frequency") +
-  scale_x_discrete(breaks = seq(1930, 2020, by = 10)) +
   theme_minimal() +
   theme(text = element_text(size = 9))
 
-# Calculate the difference in years
-age_driving_licence <- as.numeric(difftime(train_set$Date_driving_licence, 
-                                           train_set$Date_birth, 
-                                           units = "weeks")) / 52.25
-
-# Create a histogram of the age difference
-distribution_licence_age <- ggplot(train_set, aes(x = age_driving_licence)) +
+# Distribution of licence age (age less driving age) :
+distribution_licence_age <- ggplot(train_set, aes(x = Age - Driving_age)) +
   geom_histogram(binwidth = 1, fill = "darkblue", alpha = 0.8) +
   labs(x = "Driving Licence (age)",
        y = "Frequency") +
@@ -448,7 +441,7 @@ distribution_licence_age <- ggplot(train_set, aes(x = age_driving_licence)) +
 
 # Plot the 2 graphs :
 plot_grid(
-  distribution_dob,
+  distribution_age,
   distribution_licence_age,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
@@ -459,7 +452,7 @@ plot_grid(
 
 # Summary of the policy details
 policy_summary_1 <- train_set %>%
-  select("ID", "Date_start_contract", "Date_last_renewal", "Date_next_renewal", "Distribution_channel") %>%
+  select("ID", "Date_start_contract", "Date_last_renewal", "Distribution_channel") %>%
   summary()
 
 policy_summary_2 <- train_set %>%
@@ -826,11 +819,232 @@ plot_grid(
 )
 
 #########################################################
+#         5.3.2 Cost - Vehicle (Category)               #
+#########################################################
+
+# Claim Policy Ratio compared to Type_risk
+type_risk_summary <- insurance_data %>%
+  select(ID, Year, Type_risk, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Type_risk) %>%
+  summarize(
+    Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
+    Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+    Nb_policies = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    Year = as.factor(Year),
+    Type_risk = recode(Type_risk, `1` = "Motorbikes",
+                       `2` = "Vans",
+                       `3` = "Passenger cars",
+                       `4` = "Agricultural vehicles"),
+    Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
+    Cost_Policy_Ratio = Total_cost / Nb_policies
+  )
+type_risk_summary
+
+# Claim Policy Ratio compared to Type Risk
+type_risk_claim_policy_ratio <-   type_risk_summary %>%
+  ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Type_risk)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year", y = "Claim Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+
+# Claim Policy Ratio compared to Type Risk
+type_risk_cost_policy_ratio <-   type_risk_summary %>%
+  ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Type_risk)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year", y = "Cost Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+
+# Plot the 2 graphs :
+plot_grid(
+  type_risk_claim_policy_ratio,
+  type_risk_cost_policy_ratio,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.3.3 Cost - Policy Holder                    #
+#########################################################
+
+# Claims
+claims_data <- train_set %>%
+  group_by(Year, ID) %>%
+  summarise(total_claims = sum(N_claims_year, na.rm = TRUE))
+claims_data
+
+# Total number of N_claims_year
+total_claims <- sum(claims_data$total_claims, na.rm = TRUE)
+total_claims
+# Prepare to count IDs based on conditions
+max_claims <- max(claims_data$total_claims, na.rm = TRUE)
+max_claims
+
+# Create a summary of counts for each year and claim category
+claims_summary <- claims_data %>%
+  group_by(Year, total_claims) %>%
+  summarise(Count_claims = n(), .groups = 'drop') %>%
+  complete(Year, total_claims = 0:max_claims, fill = list(Count_claims = 0)) %>%
+  rename(Nb_claims = total_claims) %>%
+  # Calculate cumulative counts
+  group_by(Year) %>%
+  mutate(Cumulative_claims = rev(cumsum(rev(Count_claims))),
+         percentage = Cumulative_claims / lag(Cumulative_claims),
+         percentage = ifelse(is.na(percentage), 100, percentage * 100)
+  ) %>%
+  ungroup()
+
+# Display the resulting summary
+claims_summary
+
+# Risk of Raising a New Claim based on number of claims raised during the year
+claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
+  ggplot(aes(x = Nb_claims, y = percentage)) +
+  geom_point() +
+  geom_smooth(method = "loess", formula = y ~ x) +
+  labs(x = "Number of Previous Claims",
+       y = "Risk (%)") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Risk of Raising a New Claim based on number of claims raised during the year :
+# Comparison between years
+claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
+  mutate(Year = as.factor(Year)) %>%
+  ggplot(aes(x = Nb_claims, y = percentage, color = Year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  labs(x = "Number of Previous Claims",
+       y = "Risk (%)") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Risk of Raising a New Claim based on history (total claims raised)
+# We only display data for 2017 (last full year)
+risk_summary <- train_set %>%
+  group_by(Year) %>%
+  select(Year, ID, N_claims_year, Cost_claims_year, N_claims_history, R_Claims_history)
+
+# Calculate average N_claims_year by N_claims_history
+avg_claims_N_hist <- risk_summary %>%
+  group_by(N_claims_history) %>%
+  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "N_claims_history",
+       y = "Avg N_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average N_claims_year by R_Claims_history
+avg_claims_R_hist <- risk_summary %>%
+  filter(R_Claims_history < 10) %>%
+  group_by(R_Claims_history) %>%
+  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "R_Claims_history",
+       y = "Avg N_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average Cost_claims_year by N_claims_history
+avg_cost_N_hist <- risk_summary %>%
+  group_by(N_claims_history) %>%
+  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "N_claims_history",
+       y = "Avg Cost_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Calculate average Cost_claims_year by R_Claims_history
+avg_cost_R_hist <- risk_summary %>%
+  filter(R_Claims_history < 10) %>%
+  group_by(R_Claims_history) %>%
+  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
+  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  labs(x = "R_Claims_history",
+       y = "Avg Cost_claims_year") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
+# Plot the 4 different graphs :
+plot_grid(
+  avg_claims_N_hist,
+  avg_claims_R_hist,
+  avg_cost_N_hist,
+  avg_cost_R_hist,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         5.3.4 Cost - Policy                           #
+#########################################################
+
+# Claim Policy Ratio compared to Area
+area_summary <- insurance_data %>%
+  select(ID, Year, Area, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Area) %>%
+  summarize(
+    Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
+    Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+    Nb_policies = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    Year = as.factor(Year),
+    Area = recode(Area, `0` = "Rural", `1` = "Urban"),  # Recode Area
+    Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
+    Cost_Policy_Ratio = Total_cost / Nb_policies
+  )
+
+area_summary
+
+# Claim Policy Ratio compared to Area :
+area_claim_policy_ratio <-  area_summary %>%
+  ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
+  labs(x = "Year", y = "Claim Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Cost Policy Ratio compared to Area :
+area_cost_policy_ratio <-  area_summary %>%
+  ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
+  labs(x = "Year", y = "Cost Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the 2 graphs :
+plot_grid(
+  area_claim_policy_ratio,
+  area_cost_policy_ratio,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+
+#########################################################
 #         X. Following                                  #
 #########################################################
 
-##########################
-# TODO
+# Exit the script
+stop("Stopping the script.")
 
 
 
@@ -907,129 +1121,14 @@ insurance_data %>%
 #         3.2 Claims : previous claims                  #
 #########################################################
 
-# Claims
-claims_data <- insurance_data %>%
-  group_by(Year_last_renewal, ID) %>%
-  summarise(total_claims = sum(N_claims_year, na.rm = TRUE))
-claims_data
-
-# Total number of N_claims_year
-total_claims <- sum(claims_data$total_claims, na.rm = TRUE)
-total_claims
-# Prepare to count IDs based on conditions
-max_claims <- max(claims_data$total_claims, na.rm = TRUE)
-max_claims
-
-# Create a summary of counts for each year and claim category
-claims_summary <- claims_data %>%
-  group_by(Year_last_renewal, total_claims) %>%
-  summarise(Count_claims = n(), .groups = 'drop') %>%
-  complete(Year_last_renewal, total_claims = 0:max_claims, fill = list(Count_claims = 0)) %>%
-  rename(Nb_claims = total_claims) %>%
-  # Calculate cumulative counts
-  group_by(Year_last_renewal) %>%
-  mutate(Cumulative_claims = rev(cumsum(rev(Count_claims))),
-         percentage = Cumulative_claims / lag(Cumulative_claims),
-         percentage = ifelse(is.na(percentage), 100, percentage * 100)
-         ) %>%
-  ungroup()
-
-# Display the resulting summary
-claims_summary
-
-# Risk of Raising a New Claim based on number of claims raised during the year
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
-  ggplot(aes(x = Nb_claims, y = percentage)) +
-  geom_point() +
-  geom_smooth(method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Risk (%)") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Risk of Raising a New Claim based on number of claims raised during the year :
-# Comparison between years
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
-  mutate(Year = as.factor(Year_last_renewal)) %>%
-  ggplot(aes(x = Nb_claims, y = percentage, color = Year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Risk (%)") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Risk of Raising a New Claim based on history (total claims raised)
-# We only display data for 2017 (last full year)
-risk_summary <- insurance_data %>%
-  group_by(Year_last_renewal) %>%
-  select(Year_last_renewal, ID, N_claims_year, Cost_claims_year, N_claims_history, R_Claims_history)
-
-# Calculate average N_claims_year by N_claims_history
-avg_claims_N_hist <- risk_summary %>%
-  group_by(N_claims_history) %>%
-  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
-  labs(x = "N_claims_history",
-       y = "Avg N_claims_year") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Calculate average N_claims_year by R_Claims_history
-avg_claims_R_hist <- risk_summary %>%
-  filter(R_Claims_history < 10) %>%
-  group_by(R_Claims_history) %>%
-  summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
-  labs(x = "R_Claims_history",
-       y = "Avg N_claims_year") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Calculate average Cost_claims_year by N_claims_history
-avg_cost_N_hist <- risk_summary %>%
-  group_by(N_claims_history) %>%
-  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
-  labs(x = "N_claims_history",
-       y = "Avg Cost_claims_year") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Calculate average Cost_claims_year by R_Claims_history
-avg_cost_R_hist <- risk_summary %>%
-  filter(R_Claims_history < 10) %>%
-  group_by(R_Claims_history) %>%
-  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
-  labs(x = "R_Claims_history",
-       y = "Avg Cost_claims_year") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-
-# Plot the 4 different graphs :
-plot_grid(
-  avg_claims_N_hist,
-  avg_claims_R_hist,
-  avg_cost_N_hist,
-  avg_cost_R_hist,
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-)
 
 
 # Risk of Raising a New Claim based on history (total claims raised)
 # We only display data for 2017 (last full year)
 insurance_data %>%
-  group_by(Year_last_renewal) %>%
-  select(Year_last_renewal, ID, N_claims_year, N_claims_history) %>%
-  filter(N_claims_year > 0 & Year_last_renewal == 2017) %>%
+  group_by(Year) %>%
+  select(Year, ID, N_claims_year, N_claims_history) %>%
+  filter(N_claims_year > 0 & Year == 2017) %>%
   ggplot(aes(x = N_claims_history, y = N_claims_year)) +
   geom_point() +
   geom_smooth(method = "loess", formula = y ~ x) +
@@ -1075,96 +1174,12 @@ plot_grid(
 #         3.5 Claim Policy Ratios / Area                #
 #########################################################
 
-# Claim Policy Ratio compared to Area
-area_summary <- insurance_data %>%
-  select(ID, Year = Year_last_renewal, Area, N_claims_year, Cost_claims_year) %>%
-  group_by(Year, Area) %>%
-  summarize(
-    Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
-    Total_cost = sum(Cost_claims_year, na.rm = TRUE),
-    Nb_policies = n(),
-    .groups = 'drop'
-  ) %>%
-  mutate(
-    Year = as.factor(Year),
-    Area = recode(Area, `0` = "Rural", `1` = "Urban"),  # Recode Area
-    Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
-    Cost_Policy_Ratio = Total_cost / Nb_policies
-  )
-
-area_summary
-
-# Claim Policy Ratio compared to Area : Nb of Claims and cost
-plot_grid(
-  area_summary %>%
-    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Claim Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
-
-  area_summary %>%
-    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Cost Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
-  
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-)
 
 #########################################################
 #         3.5 Claim Policy Ratios / Type Risk           #
 #########################################################
 
-# Claim Policy Ratio compared to Type_risk
-type_risk_summary <- insurance_data %>%
-  select(ID, Year = Year_last_renewal, Type_risk, N_claims_year, Cost_claims_year) %>%
-  group_by(Year, Type_risk) %>%
-  summarize(
-    Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
-    Total_cost = sum(Cost_claims_year, na.rm = TRUE),
-    Nb_policies = n(),
-    .groups = 'drop'
-  ) %>%
-  mutate(
-    Year = as.factor(Year),
-    Type_risk = recode(Type_risk, `1` = "Motorbikes",
-                       `2` = "Vans",
-                       `3` = "Passenger cars",
-                       `4` = "Agricultural vehicles"),
-    Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
-    Cost_Policy_Ratio = Total_cost / Nb_policies
-  )
-type_risk_summary
 
-# Claim Policy Ratio compared to Type Risk : Nb of Claims and cost
-plot_grid(
-  type_risk_summary %>%
-    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Type_risk)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(x = "Year", y = "Claim Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top") +
-    guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE)),
-  
-  type_risk_summary %>%
-    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Type_risk)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(x = "Year", y = "Cost Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top") +
-    guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE)),
-  
-  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
-)
-
-# Exit the script
-stop("Stopping the script.")
 
 
 
