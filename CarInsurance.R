@@ -945,12 +945,13 @@ avg_claims_N_hist <- risk_summary %>%
 
 # Calculate average N_claims_year by R_Claims_history
 avg_claims_R_hist <- risk_summary %>%
+  mutate(R_Claims_history = round(R_Claims_history, digits = 1)) %>%
   filter(R_Claims_history < 10) %>%
   group_by(R_Claims_history) %>%
   summarise(Average_N_claims_year = mean(N_claims_year, na.rm = TRUE)) %>%
   ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
   geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
   labs(x = "R_Claims_history",
        y = "Avg N_claims_year") +
   theme_minimal() +
@@ -959,8 +960,8 @@ avg_claims_R_hist <- risk_summary %>%
 # Calculate average Cost_claims_year by N_claims_history
 avg_cost_N_hist <- risk_summary %>%
   group_by(N_claims_history) %>%
-  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = N_claims_history, y = Average_N_claims_year)) +
+  summarise(Average_Cost_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = N_claims_history, y = Average_Cost_claims_year)) +
   geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
   geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
   labs(x = "N_claims_history",
@@ -970,12 +971,13 @@ avg_cost_N_hist <- risk_summary %>%
 
 # Calculate average Cost_claims_year by R_Claims_history
 avg_cost_R_hist <- risk_summary %>%
+  mutate(R_Claims_history = round(R_Claims_history, digits = 1)) %>%
   filter(R_Claims_history < 10) %>%
   group_by(R_Claims_history) %>%
-  summarise(Average_N_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
-  ggplot(aes(x = R_Claims_history, y = Average_N_claims_year)) +
+  summarise(Average_Cost_claims_year = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ggplot(aes(x = R_Claims_history, y = Average_Cost_claims_year)) +
   geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  geom_area(stat = "identity", fill = "darkblue", alpha = 0.7) +
+  geom_bar(stat = "identity", fill = "darkblue", alpha = 0.7) +
   labs(x = "R_Claims_history",
        y = "Avg Cost_claims_year") +
   theme_minimal() +
@@ -1046,12 +1048,79 @@ plot_grid(
 # Exit the script
 stop("Stopping the script.")
 
+train_set
+train_set %>%
+  select(ID, Year, Age, Second_driver, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Age) %>%
+  summarize(Total_SD = sum(Second_driver, na.rm = TRUE),
+            Nb_policies = n(),
+            .groups = 'drop') %>%
+  mutate(Year = as.factor(Year),
+         SD_Policy_Ratio = Total_SD / Nb_policies) %>%
+  ggplot(aes_string(x = "Age", y = "SD_Policy_Ratio", color = "Year")) +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Age", y = "SD Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
 
 
+plot_0 <- train_set %>%
+  filter(Second_driver == 0) %>%
+  select(ID, Year, Age, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Age) %>%
+  summarize(Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+            Nb_policies = n(),
+            .groups = 'drop') %>%
+  mutate(Year = as.factor(Year),
+         Cost_Policy_Ratio = Total_cost / Nb_policies) %>%
+  ggplot(aes_string(x = "Age", y = "Cost_Policy_Ratio", color = "Year")) +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Age", y = "Cost Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
 
+plot_1 <- train_set %>%
+  filter(Second_driver == 1) %>%
+  select(ID, Year, Age, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Age) %>%
+  summarize(Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+            Nb_policies = n(),
+            .groups = 'drop') %>%
+  mutate(Year = as.factor(Year),
+         Cost_Policy_Ratio = Total_cost / Nb_policies) %>%
+  ggplot(aes_string(x = "Age", y = "Cost_Policy_Ratio", color = "Year")) +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Age", y = "Cost Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
 
+plot_grid(
+  plot_0,
+  plot_1,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
 
+sd_summary <- train_set %>%
+  select(ID, Year, Second_driver, N_claims_year, Cost_claims_year) %>%
+  group_by(Year, Second_driver) %>%
+  summarize(Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+            Nb_policies = n(),
+            .groups = 'drop') %>%
+  mutate(Year = as.factor(Year),
+         Cost_Policy_Ratio = Total_cost / Nb_policies,
+         Second_driver = as.character(Second_driver))
 
+str(sd_summary)
+sd_summary %>%
+  ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Second_driver)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year", y = "Cost Policy Ratio") +
+  ylim(0, NA) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
 
 
 #########################################################

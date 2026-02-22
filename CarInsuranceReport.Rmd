@@ -287,6 +287,8 @@ plot_grid(
 )
 ```
 
+The two plots above indicate that there were few policies and low costs in 2015, as data collection began in November. From 2016 to 2018, the number of policies remained stable; however, there were fewer policies with claims and a decline in total claims in 2017 compared to 2016, resulting in lower costs over the years. Notably, the ratio of claims to policies with claims decreased annually, suggesting that not only were there fewer policies with claims, but also that the average number of claims per policy for those that did have claims diminished as well.
+
 \newpage
 
 The table below shows the new and terminating policies per year, as well as the related claim proportions :
@@ -384,7 +386,7 @@ policy_summary_1 %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from October 25, 1980, to November 30, 2018, with a mean date around June 26, 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being November 2, 2015, and the latest also being November 30, 2018, implying regular renewals among many policies. The next renewal dates range from November 2, 2016, to November 30, 2019, with a mean of June 19, 2018, highlighting trends in customer retention and policy renewals.
+The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from October 25, 1980, to November 30, 2018, with a mean date around June 26, 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being November 2, 2015, and the latest also being November 30, 2018, implying all policies were active at some point between 2015 and 2018. The Distribution_channel indicates that more policies were contracted through agents (0) than through brokers (1).
 
 ```{r, echo=FALSE}
 policy_summary_2 %>%
@@ -392,21 +394,49 @@ policy_summary_2 %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-Most policyholders maintain 1 to 2 policies, although some hold up to 17 policies, indicating that while many keep a single insurance policy, there are individuals with multiple coverages. The number of claims per policy varies, with a maximum of 25 claims per year and an average of about 0.39 claims, suggesting that most policyholders do not frequently file claims. The cost of claims ranges from 0 to approximately 260,853.2, with an average claim cost around 153.6, indicating that many claims are not high-cost but there are outliers with significant expenses.
+The Policies_in_force column shows a range from 1 to 17, with a mean of approximately 1.44, indicating that while most policies have a single policy in force, a small number of policies possess multiple active accounts. This suggests that policyholders typically hold one policy.
+
+The Max_policies column ranges from 1 to 17 as well, with an average of around 1.83 policies per holder, suggesting some customers maintain multiple policies, potentially enhancing coverage or benefits. However, the Max_products column, which varies from 1 to 4, with an average of 1.07, indicates that most policies involve only a single product, implying limited diversification in policy offerings per holder.
+
+The Lapse column shows a minimum value of 0 and a maximum of 7, with a mean of approximately 0.23, indicating that while lapsing (a policy termination due to non-payment or inactivity) does occur, it is not widespread across the dataset. Most policies appear stable. The Date_lapse provides a timeline of lapses, ranging from November 2, 2015, to June 1, 2019, with the median lapse date falling on August 25, 2017. The significant number of NA values (61,287) suggests that many policies may lack lapse data, possibly indicating they have remained active or that the lapse information was not recorded.
+
+Overall, the data indicates a predominance of single policies held by customers, with some retaining multiple policies for additional coverage, while lapsing appears to be limited but varied.
+
+\newpage
 
 ```{r, echo=FALSE}
 policy_summary_3 %>%
   kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
 
+The Payment column signifies the last payment method used for the reference policy: 1 indicates a half-yearly administrative process, while 0 represents an annual payment method. The mean value of approximately 0.32 suggests that a notable portion of policies utilizes the half-yearly option, although many still adhere to the traditional annual payment method.
+
+The Premium column ranges from a minimum of 40.14 to a maximum of 2,993.34, with a mean premium of around 316.33. This wide spread of premium amounts reflects variations based on policy type, coverage levels, and risk assessments. The median premium of 292.97 indicates that half of the policies have premiums below this amount, suggesting that many policies are likely in the low- to mid-tier range in terms of coverage.
+
+The Type_risk column classifies vehicles insured under the policies, with 1 for motorbikes, 2 for vans, 3 for passenger cars, and 4 for agricultural vehicles. The mean value of approximately 2.72 and a median of 3.00 indicate that the majority of policies are associated with passenger cars, with a balanced distribution among the different vehicle types.
+
+Overall, the data reflects a diverse portfolio of insurance policies with varying premium rates influenced by risk categories, as well as a significant number of policies opting for half-yearly payment methods.
+
+```{r, echo=FALSE}
 policy_summary_4 %>%
   kbl(format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-Premium costs span from approximately 40.14 to 2,993.34, with a mean premium of about 315.89, reflecting the variety of coverage levels available. The type of risk associated with the policies corresponds to specific vehicle categories: 1 for motorbikes, 2 for vans, 3 for passenger cars, and 4 for agricultural vehicles, with a predominance of risk type 3 (passenger cars) in the dataset.
+The Cost_claims_year column shows a wide range in claim costs, from a minimum of 0.0 to a maximum of 260,853.2, with a mean cost of approximately 169.1. Most policies report zero costs annually, as reflected by the minimum and median values being 0.0, indicating that a significant number of policies did not incur claims in the year analyzed.
 
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Nb Policies and Type Risk", fig.width=6, fig.height=4}
+The N_claims_year column, which counts the number of claims made within the year, also demonstrates limited activity, with most entries recording 0 claims. The average number of claims per year is about 0.43, with a maximum of 25, suggesting that while most policies have no claims, a few entail a higher frequency of claims.
+
+The N_claims_history column captures the total number of claims in the policyholder's history, with the minimum being 0 and a maximum of 49. The mean of approximately 2.36 indicates that while many customers have not made claims, some have a more extensive history of claims.
+
+Finally, the R_Claims_history column reflects the ratio of claims in the history relative to the number of policies, which ranges from 0.0 to 33.0. The mean of about 0.53 suggests that, on average, there is roughly one claim for every two policies held. This varied data underscores the overall low claims activity among policies while highlighting that certain policyholders may experience higher claim frequencies.
+
+\newpage
+
+The accompanying image provides a visual representation of the distributions associated with some metrics, including the number of policies, type of risk, premium amounts, and the number of claims. These histograms will further illustrate the frequency and patterns observed in the previously described data :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of policy metrics", fig.width=6, fig.height=4}
 plot_grid(
   distribution_nb_policies,
   distribution_type_risk,
@@ -428,7 +458,7 @@ The Length and Weight of a vehicle are also correlated enough (0.83) so we won't
 
 We start first by displaying a matrix of correlations between variables related to the car, the policy holder and some policy attributes (Premium, N_claims_year and Cost_claims_year). The most correlated variables will be ordered from top to bottom, right to left (highest correlations in the top-right) :
 
-```{r, echo=FALSE, fig.align="center", fig.cap = "Correlation Matrix Car Details", fig.width=5, fig.height=5}
+```{r, echo=FALSE, fig.align="center", fig.cap = "Correlation Matrix Car Details", fig.width=4, fig.height=4}
 # Graphical view of the correlations :
 ggcorrplot(correlation_matrix_car, 
            lab_size = 5,
@@ -445,7 +475,9 @@ Additionally, the Premium variable shows significant correlation with these vari
 
 Surprisingly the variables associated with claims (N_claims_year, and Cost_claims_year) show lower correlations with Premium or vehicle related characteristics.
 
-The following plots show the correlation between the value of a vehicle and its power, and the premium vs value :
+\newpage
+
+The following plots show the correlation between the value of a vehicle and its power, the premium vs value, the driving age vs the age and the premium vs the age :
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Correlation Plots", fig.height=4}
 plot_grid(
@@ -539,6 +571,14 @@ plot_grid(
 )
 ```
 
+The first plot represents the distribution of the number of policies per vehicle power. It shows a distribution that is approximately normal, with a peak around 100 horsepower (HP). Notably, there are very few policies associated with vehicles exceeding 200 HP, indicating a significant decline in insurance uptake for more powerful vehicles.
+
+The second plot illustrates the distribution of the number of policies in relation to vehicle value. This plot indicates a high concentration of policies for vehicles valued at around 10,000 euros, with a gradual decline as vehicle value increases. The distribution is substantially skewed, reflecting a more significant market presence for insuring lower-value vehicles, suggesting that there are fewer high-value vehicles as the number of policies drops significantly for those above 20,000 euros.
+
+The third plot displays the ratio of the cost of insurance policies relative to the power of the vehicles. This plot reveals an upward trend, indicating that as vehicle power rises, the cost of insurance also escalates. This could be attributed to higher risk factors associated with more powerful vehicles, reflecting a higher number of claims or more expensive repairs needed. However, the graph for power levels above 200 HP may not be particularly relevant, as previously indicated in the first plot, where we noted the minimal number of policies related to these higher power levels.
+
+The last plot illustrates the cost-policy ratio in relation to vehicle value. Similar to the previous analyses, this shows an increasing trend where the cost of insurance rises as vehicle value increases. This suggests that more expensive vehicles incur higher insurance costs, likely due to perceived greater risk and replacement costs associated with insuring valuable assets. Nevertheless, the ratios for vehicles valued over 20,000 euros may also lack relevance, as there are few policies associated with these higher-value vehicles, limiting the applicability of the data in this range.
+
 \newpage
 
 The following table shows the difference in term of number of policies, claims and cost per type of vehicle (motorbike, van, car or tractor) and per year :
@@ -570,7 +610,7 @@ plot_grid(
 
 We will now see how the policy holder variables can affect the cost :
 
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Age and Driving age", fig.width=6, fig.height=6}
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Age and Driving age", fig.width=6, fig.height=4}
 plot_grid(
   nb_policies("Age"),
   nb_policies("Driving_age"),
