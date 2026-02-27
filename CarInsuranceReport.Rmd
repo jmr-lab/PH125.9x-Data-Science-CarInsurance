@@ -462,7 +462,8 @@ We start first by displaying a matrix of correlations between variables related 
 # Graphical view of the correlations :
 ggcorrplot(correlation_matrix_car, 
            lab_size = 5,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkblue", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 8),
     axis.text.y = element_text(size = 8),
@@ -499,7 +500,8 @@ The second matrix will show correlations between policy variables and Power, Val
 # Graphical view of the correlations :
 ggcorrplot(correlation_matrix_policy,
            lab_size = 5,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkblue", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 8),
     axis.text.y = element_text(size = 8),
@@ -520,7 +522,8 @@ The figure below shows the correlation between N_claims_year (number of claims i
 ```{r, echo=FALSE}
 ggcorrplot(relevant_correlations, 
            lab_size = 3,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkblue", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 9),
     axis.text.y = element_text(size = 9),
@@ -538,22 +541,32 @@ In contrast, Cost_claims_year is positively correlated with N_claims_year at 0.1
 
 ### 5.3.1 Timeline
 
-We saw earlier that the yearly cost is somewhat related to the number of claims submitted during the year, and that it also dicreases everery year. Let's see the monthly trend for the cost, number of claims and ration cost per claim :
+We saw earlier that the yearly cost is somewhat related to the number of claims submitted during the year, and that it also dicreases everery year. Let's see the monthly trend for the number of policies (renewal), cost and number of claims :
 
-```{r, echo=FALSE, fig.align="center", fig.cap = "Cost and Claims per Month", fig.width=6, fig.height=2}
+```{r, echo=FALSE, fig.align="center", fig.cap = "Total Policies, Claims and Cost per Month", fig.width=6, fig.height=2}
 plot_grid(
-  monthly_cost,
-  monthly_claims,
-  monthly_ratio,
+  monthly_total_policies,
+  monthly_total_claims,
+  monthly_total_cost,
   ncol = 3, align = 'hv'
 )
 ```
 
-The three plots depict trends in an insurance or claims-related dataset spanning from 2016 to 2018. The Total Cost plot shows a decline in overall expenses over time, suggesting improved management or a reduction in costly claims. Similarly, the Total Claims plot reveals a downward trend in the number of claims filed, indicating fewer incidents or changes in policy that may have contributed to this decrease.
+The **Total Policies** plot demonstrates an upward trajectory. In contrast, the **Total Claims** plot exhibits a sharp decline, indicating that while the number of policies may have risen, the frequency of claims has decreased. Additionally, the **Total Cost** plot shows a downward trend in overall expenses, likely attributed to the reduction in the number of claims.
 
-Additionally, the Cost Per Claim (CPC) plot demonstrates a reduction in the costs associated with each claim, reflecting increased efficiency in claims handling or a shift toward lower-severity claims. Through these interconnected trends, it appears that the organization has achieved better control over both the quantity and cost of claims, leading to overall cost reductions during the observed period.
+Below, the two additional plots illustrate the average cost per claim and per policy :
 
-As saw earlier the cost and number of claims are somewhat correlated to the vehicle itself, the driver or policy holder and the policy (especially the history). We will now study how the cost can be affected by the variables associated with them.
+```{r, echo=FALSE, fig.align="center", fig.cap = "Cost per Policy and per Claim, per Month", fig.width=6, fig.height=2}
+plot_grid(
+  monthly_cost_per_policy,
+  monthly_cost_per_claim,
+  ncol = 2, align = 'hv'
+)
+```
+
+The **Cost per Policy** plot illustrates a clear downward trend over time. This decline suggests that market dynamics, potentially influenced by a reduction in the number of accidents in Spain during this period, are leading to lower costs.
+
+In the right plot, the **Cost per Claim** displays a more variable pattern. Initially, it appears relatively stable, but it begins to increase slightly towards the end of the observed period.
 
 \newpage
 
@@ -608,6 +621,8 @@ plot_grid(
 
 ### 5.3.3 Policy Holder
 
+#### Age and Driving age :
+
 We will now see how the policy holder variables can affect the cost :
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Age and Driving age", fig.width=6, fig.height=4}
@@ -626,80 +641,346 @@ Lastly, the right plots focuses on driving age and its relationship with claim r
 
 \newpage
 
-The figure below shows the risk for a driver to raise a new claim based on the number of claims already raised. It doesn't factor the claim history, but only the claims raised in a year (N_claims_year). We also don't display the risk for number of claims over 20 as the numbers are quite low.
+#### Claim history :
 
-```{r, echo=FALSE, fig.align="center", fig.cap = "Risk of Raising a New Claim", fig.width=4, fig.height=3}
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 15) %>%
-  ggplot(aes(x = Nb_claims, y = percentage)) +
-  geom_point() +
-  geom_smooth(method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Risk (%)") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
-```
+If we calculate the risks (i.e., the number of claims for the current year) based on prior claims, we obtain the plots shown below:
 
-The logic is as follow : each driver who raises N claims in a year have necessary raised (N-1) claims in that year before raising the Nth one. If we compare with the number of drivers who raised exactly N-1 claims, we can calculate the proportion of drivers who will raise N claims compared to the total drivers who raised N-1 claims :
-
-\begin{equation}
-Risk = \frac{Claims_{n}}{Claims_{n}+Claims_{n-1}}
-\end{equation}
-
-\newpage
-
-If we now calculate the risks (number of claims and cost of claims for the current year) based on the previous claims (number or ratio) we get the plots below :
-
-```{r, echo=FALSE, fig.align="center", fig.cap = "Estimate of Claims or Cost based on History", fig.width=6, fig.height=4}
+```{r, echo=FALSE, fig.align="center", fig.cap = "Estimate of Claims or Cost based on History", fig.width=6, fig.height=2}
 plot_grid(
-  avg_claims_N_hist,
-  avg_claims_R_hist,
-  avg_cost_N_hist,
-  avg_cost_R_hist,
+  risk_N_claims_history,
+  risk_R_Claims_history,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 ```
 
-\newpage
+The left plot illustrates the number of claims filed in the current year, derived from the total number of prior claims. However, this graph does not differentiate between policyholders who have filed numerous claims within a short timeframe and those who have made fewer claims over a longer period.
+
+The right plot similarly shows the current year's claims based on the total historical claims. This representation fails to distinguish between policyholders with identical tenure who filed claims long ago versus those who have made more recent claims. Additionally, the R_Claims_history in this plot can either increase (indicating recent claims) or decrease (indicating a lack of recent claims), contrasting with the left plot where the total number of claims can only remain constant or increase.
+
+The following figures depict the risk of filing a new claim based solely on recent history, defined as the number of policies with claims divided by the total number of policies :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Risk of Raising a New Claim", fig.width=6, fig.height=2}
+plot_grid(
+  risk_current_year,
+  risk_next_year,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+```
+
+In the left plot, we observe the ratio of claims to the number of policies, based on claims filed previously within the same year. It is evident that as the number of claims increases, so does the risk of filing a new claim, reaching a plateau of approximately 65% around six claims within the year.
+
+Due to the absence of exact dates for when claims were filed (we only have year data from 2015 to 2018), the right plot displays the risk of filing a new claim based on the number of claims filed in the preceding year. Once again, we note that the more claims were raised last year, the greater the risk of filing a new claim in the current year. It is important to highlight that this graph indicates extremely low risk values for policyholders who did not file any claims in the previous year and does not account for new policyholders, for whom the risk ranges between 42% in 2015 and 24% in 2018.
 
 ### 5.3.4 Policy
 
-The location the policy holder may affect the cost. Driving in urban areas is generally considered to be more enclined to accidents, and while driving in rural areas should be safer, accidents may be more important and costly.
+#### New / Renewal :
+
+The table below summarizes insurance claims categorized by policy status, "New" and "Ongoing" :
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Area", fig.height=3}
 kable(
-  area_summary %>%
-    select(Year, Area, Nb_policies, Nb_policy_claims, Total_cost),
+  summary_cost_all_years,
   format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The provided data summarizes insurance claims across rural and urban areas from 2015 to 2018. Each entry represents a specific year and area type, detailing the Nb_policy_claims (number of policies with at least one claim), Total_cost (total claims cost), Nb_policies (total number of policies), Claim_Policy_Ratio (ratio of claims to policies), and Cost_Policy_Ratio (ratio of total costs to policies). For instance, in 2015, rural areas had 911 policies with claims, leading to a total cost of 812,282 from a total of 3,177 policies, resulting in a Claim_Policy_Ratio of 0.287 and a Cost_Policy_Ratio of 256. Urban areas in the same year reported 456 claim policies out of 1,382, reflecting slightly higher ratios. Over the years, it is evident that the number of claims in rural areas fluctuated significantly, with notable spikes and declines, suggesting varying insurance activity or risk levels. Overall, the data highlights differences in claim behavior and expenditure trends between rural and urban settings.
+The "New" category includes a significant number of policies with an average cost per policy that is notably higher than that of ongoing policies. This indicates that while the total costs for new policies might not exceed those of ongoing ones, they tend to be more expensive on a per-policy basis.
 
-```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Area : Nb of Claims and cost", fig.height=3}
+In contrast, the "Ongoing" category encompasses a larger number of policies, leading to a higher total cost overall. However, the average cost per ongoing policy is lower. This suggests that ongoing policies are more frequent but less costly on average.
+
+The number of policies and total cost per year and per status (New or Ongoing) is shown below :
+ 
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Nb Policies and Total Cost per Status (New / Ongoing)", fig.width=6, fig.height=2}
 plot_grid(
-  area_summary %>%
-    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Claim Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
+  cost_nb_policies,
+  cost_total_value,
+  ncol = 2, align = 'hv'
+)
+```
 
-  area_summary %>%
-    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
-    geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-    labs(x = "Year", y = "Cost Policy Ratio") +
-    ylim(0, NA) +
-    theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top"),
-  
+While we can see there is much more ongoing policies than new ones over the years, the total cost which was higher in 2015 and especially in 2016 for the ongoing policies, is since 2017 higher for new policies, even if there are less of them during these two years, showing a much higher cost average in 2017 and 2018.
+
+\newpage
+
+The first explanation would be to consider the new policies being related to new drivers (low age or driving age), but the plot below proves this is not true :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Average Cost per Age and Status (New / Ongoing)", fig.width=6, fig.height=3}
+cost_avg_status
+```
+
+In the above plot, we categorize policyholders by age. For this analysis, individuals under 25 years old are considered "young," while those 25 and older are classified as "old." The data indicates that experienced policyholders with new policies (in grey) incur higher average costs compared to young policyholders with ongoing policies (in dark red), regardless of the year.
+
+#### Area :
+
+The table below presents an analysis of insurance policies categorized by year and area, focusing on the rural and urban settings :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Area", fig.height=3}
+kable(
+  nb_policy_binary(train_set, "Area", c("Rural", "Urban")) %>%
+    select(Year, Area, Nb_policies, Total_cost, Cost_Policy_Ratio),
+  format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+Overall, there are consistently more policies in rural areas compared to urban areas across all years.
+
+The data also reveals that the number of claims per policy is higher in rural areas compared to urban areas, indicating that policyholders in rural regions are more likely to file claims. Despite this difference in the frequency of claims, the average cost associated with claims is similar between the two areas. This suggests that, while rural policies may generate more claims, the financial impact per claim does not significantly differ from that of urban policies.
+
+\newpage
+
+The two plots below illustrate the number of claims as well as the average cost per policy :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio compared to Area : Nb of Claims and cost", fig.height=2}
+plot_grid(
+  claim_policy_ratio_area,
+  cost_policy_ratio_area,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 ```
 
+#### Distribution channel and Payment :
+
+The Distribution channel classifies the channel through which the policy was contracted : 0 for Agent and 1 for Insurance brokers.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Distribution channel", fig.height=3}
+kable(
+  nb_policy_binary(train_set, "Distribution_channel", c("Agent", "Broker")) %>%
+    select(Year, Distribution_channel, Nb_policies, Total_cost, Cost_Policy_Ratio),
+  format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+In 2015, the data indicates that Agents sold significantly more policies than Brokers, with Agents achieving a lower average cost per policy compared to Brokers. Over the years, however, a noticeable shift occurs. By 2018, the average cost per policy for Agents and Brokers dropped dramatically.
+
+The Payment indicates the method of the reference policy. 1 represents a half-yearly administrative process and 0 indicates an annual payment method.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Claim Policy Ratio Table compared to Payment", fig.height=3}
+kable(
+  nb_policy_binary(train_set, "Payment", c("Half yearly", "Annual")) %>%
+    select(Year, Payment, Nb_policies, Total_cost, Cost_Policy_Ratio),
+  format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+In 2015, Half Yearly payments had a higher volume of policies sold compared to Annual payments, but the average cost per policy for Annual payments was considerably higher. As the years progressed, a trend emerges where the average cost for both Annual and Half Yearly payments decreases significantly by 2018.
+
 \newpage
 
-# References
+The plots below illustrate the average cost per policy concerning distribution channels and payment methods from 2015 to 2018 :
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Cost Policy Ratio compared to Distribution Channel and Payment", fig.height=2}
+plot_grid(
+  cost_policy_ratio_channel,
+  cost_policy_ratio_payment,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+```
+
+In the left graph, the average cost for policies sold through Agents is consistently lower than that for policies sold by Brokers throughout the years.
+
+Similar to the distribution channel analysis, the right graph illustrates that Annual payments consistently have higher average costs compared to Semi-Annual payments.
+
+\newpage
+
+## 5.4 Summary
+
+A variety of variables have been examined to understand their relationships and implications for cost prediction.
+
+Initially, we analyzed the timeline of policy changes from 2015 to 2018, revealing a significant increase in the number of policies, alongside a decline in claims ratios. Additionally, vehicle characteristics—including power, value, and type of risk—showed substantial influence on claims and costs. Notably, vehicles with higher power outputs generally incur higher insurance costs.
+
+The analysis of policyholders highlighted demographics, including age and driving experience, showing that younger drivers typically present higher claim ratios due to riskier driving behaviours. Established claim histories also have predictive power, indicating that past claims can influence future claims. Furthermore, examining policy status—distinguishing between new and ongoing policies—revealed that while new policies often carry higher per-policy costs, ongoing policies account for a greater overall cost due to their volume.
+
+To refine the model for predicting insurance costs, the following variables will be prioritized: timeline, policy status (new/ongoing), power, value vehicle, type risk, age, R_Claims_history, distribution channel, and payment method. Each of these factors plays a vital role in forming a comprehensive cost model that can enhance risk assessment and support strategic planning within the insurance industry.
+
+\newpage
+
+# 6 Predictions
+
+## 6.1 Methodology
+
+The objective of this methodology is to develop an accurate predictive model for car insurance costs using AI techniques. With a focus on continuous improvement, I will employ a structured approach to model training and validation, ensuring that the predictions are robust and reliable. Key performance metrics will be utilized to evaluate the model's accuracy at both individual customer levels and overall insurance company levels.
+
+**Model Development and Data Sub-Splitting**
+
+After preparing the initial dataset and conducting preliminary analysis, I will sub-split the existing **train_set** into two distinct subsets: **sub_train_set** and **sub_valid_set**. This sub-splitting is critical as it allows for a more refined approach to model training and validation.
+
+- **Sub-Train Set**: This smaller subset will be used for the actual training of the predictive model. Feature engineering will focus on elements such as customer demographics, driving history, and vehicle specifications that significantly influence premiums.
+
+- **Sub-Valid Set**: This subset will be employed for validation purposes, allowing me to assess how well the model generalizes to unseen data. The **sub_valid_set** will serve as a crucial checkpoint to evaluate the model's performance and mitigate the risk of overfitting to the training data.
+
+During the training phase, hyperparameters will be optimized to enhance predictive accuracy.
+
+**Validation and Incremental Learning**
+
+Upon completing the training phase, the model's performance will be evaluated using the **sub_valid_set**. The Root Mean Square Error (RMSE) metric will be the primary measure of model accuracy. This metric assists in determining how closely the predicted insurance costs align with the actual costs at the individual customer level.
+
+\[
+RMSE = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (\hat{y}_i - y_i)^2}
+\]
+
+where :  
+\( y_{i} \) : The observed values (actual ratings).  
+\( \hat{y}_{i} \) : The predicted values (model outputs).  
+\( N \): The number of observations.  
+
+The goal here is to achieve a low RMSE, indicating that the predictions are reliable for the end-users. If the validation results are satisfactory, I will consider the possibility of incrementally retraining the model using the validation data. Incremental training allows for gradual improvements, enabling the model to adapt as new patterns emerge, reflecting any shifts in customer behavior or market conditions.
+
+**Testing**
+
+The final step involves testing the model on an independent **test_set** that was set aside during the initial data preparation phase. This phase is essential for assessing the model's performance in a real-world context, allowing for a thorough evaluation of its predictive capability.
+
+Similar to the validation phase, RMSE will be calculated for the test set, providing insights into the model’s predictive accuracy at a customer level. Additionally, I will assess the model’s performance at the aggregate level by comparing total cost predictions with actual costs incurred by the insurance company. Evaluating performance in both dimensions not only bolsters confidence in the model's predictions but also identifies areas for possible enhancements in future iterations.
+
+\newpage
+
+## 6.2 Average (Baseline)
+
+To begin our cost predictions, we will start by using a constant value for \( \hat{y}_i \) (denoted as \( x \)). Our objective is to minimize the RMSE defined as follows :
+
+\[
+RMSE(x) = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (x - y_i)^2}
+\]
+
+where \( x \) is the variable we want to optimize and \( y_i \) are the different costs, we follow these steps :
+
+**Step 1:** Simplify the Problem
+
+Since the square root is a monotonically increasing function, minimizing \( RMSE(x) \) is equivalent to minimizing :
+
+\[
+f(x) = \frac{1}{N} \sum_{i=1}^{N} (x - y_i)^2
+\]
+
+**Step 2:** Find the Derivative
+
+To minimize \( f(x) \), take the derivative with respect to \( x \) :
+
+\[
+f'(x) = \frac{1}{N} \sum_{i=1}^{N} 2(x - y_i)
+\]
+
+Setting the derivative to zero for minimization :
+
+\[
+f'(x) = \frac{2}{N} \sum_{i=1}^{N} (x - y_i) = 0
+\]
+
+**Step 4:** Solve for \( x \)
+
+This simplifies to :
+
+\[
+\sum_{i=1}^{N} (x - y_i) = 0
+\]
+
+Thus,
+
+\[
+Nx - \sum_{i=1}^{N} y_i = 0
+\]
+
+Solving for \( x \) :
+
+\[
+x = \frac{1}{N} \sum_{i=1}^{N} y_i = \mu
+\]
+
+**Step 5:** Conclusion
+
+The value of \( x \) that minimizes \( RMSE(x) \) is the **mean** of the constants \( y_i \) which we will call $\mu$.
+
+\newpage
+
+**Resulting Minimum Value**
+
+So if we estimate all costs to be the mean of the costs of the training subset, the cost for all policies and for all years will be :
+
+\[
+\hat{y}_i = \mu = \textbf{`r round(avg_cost, 2)`}
+\]
+
+The resulting RMSE and total costs will then be : 
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2.5cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The RMSE indicates a relatively high level of error in the predictions, indicating that the estimated costs are significantly inflated compared to the actual values, particularly since many policies have no associated costs. Specifically, the estimated cost exceeds the actual value by nearly 1.5 million, which constitutes an increase of approximately 280%.
+
+This initial model serves as a baseline for our analysis and will be used to benchmark the performance of our other prediction algorithms.
+
+\newpage
+
+## 6.3 Linear Regression
+
+Substituting the optimal \( x^* \) back into \( RMSE(x) \):
+
+\[
+RMSE(x^*) = \sqrt{\frac{1}{N} \sum_{i=1}^{N} \left(\frac{1}{N} \sum_{j=1}^{N} y_j - y_i\right)^2}
+\]
+
+This value represents the minimum distance between \( x \) and the set of constants \( y_i \). The optimal solution is to set \( x \) equal to the mean of \( y_i \) to minimize the function.
+
+The average for the predictions is : $\mu$ = 3.512465
+
+If we choose a constant number for the predictions, then $\mu$ will be the one which will give the minimum RMSE :
+
+\begin{equation}
+\Large
+\hat{y}_{i} = \mu
+\end{equation}
+
+The RMSE will then be : RMSE = 1.060331
+
+The error can be defined as :
+
+\begin{equation}
+\Large
+\epsilon_{i} = \hat{y}_{i} - y_{i}
+\end{equation}
+
+The following plots illustrate the distribution of ratings in descending order, with the average value represented by a horizontal orange line. The plot on the right depicts the distribution of errors :
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Prediction (average)", fig.height=2}
+#plot_grid(
+#  edx_movies %>% select(rating) %>% sample_n(10000) %>% #arrange(desc(rating)) %>%
+#  mutate(index = row_number()) %>%
+#  ggplot(aes(x = index, y = rating)) +
+#  geom_area(color = "darkred", fill="darkred", alpha = 0.1) +
+#  geom_hline(yintercept = mu, color = "orange", linetype = "dashed", #size = 1) +
+#  theme_minimal() + theme(text = element_text(size = 9)) +
+#  labs(x = "Index", y = "Rating"),
+#  
+#  ggplot(edx_movies, aes(x = rating - mu)) +
+#  geom_histogram(color="darkred", fill="darkred", alpha = 0.1, #position="dodge", bins = 30) +
+#  scale_y_continuous(labels = label_number(scale = 1e-6, suffix = "M")) #+
+#  scale_color_brewer(palette="Accent") + 
+#  theme_minimal() + theme(text = element_text(size = 9), legend.position #= "top") +
+#  labs(x = "Error", y = "Number of Ratings"),
+#  
+#  ncol = 2, align = 'hv', rel_heights = c(2, 2))
+```
+
+\newpage
+
+# 7. Final Test
+
+This page is for the Final Test
+
+\newpage
+
+# 8. Conclusion
+
+This page is for the Conclusion
+
+\newpage
+
+# 9. References
 
 [1] Thomas Poufinas, Periklis Gogas, Theophilos Papadimitriou and Emmanouil Zaganidis. 2023. "Machine Learning in Forecasting Motor Insurance Claims." (Machine Learning and Artificial Intelligence in Non-life Insurance: Theory, Methods and Applications.) https://www.mdpi.com/2227-9091/11/9/164
 

@@ -15,6 +15,7 @@ library(stringr)
 #library(fontawesome)
 library(scales)
 #library(glue)
+library(purrr)
 
 #########################################################
 #         3. Dataset                                    #
@@ -302,9 +303,9 @@ insurance_mv <- train_set %>%
     Total_Policies = n_distinct(ID),
     New_Policies = sum(Year == Year_Start),
     Terminating_Policies = sum(Year == Year_End, na.rm = TRUE),
-    Proportion_All_With_Claims = round(sum(N_claims_year > 0) / Total_Policies * ifelse(Total_Policies > 0, 1, 0), 3),
-    Proportion_New_With_Claims = round(sum(N_claims_year[Year == Year_Start] > 0) / New_Policies * ifelse(New_Policies > 0, 1, 0), 3),
-    Proportion_Terminating_With_Claims = round(sum(N_claims_year[Year == Year_End] > 0, na.rm = TRUE) / Terminating_Policies * ifelse(Terminating_Policies > 0, 1, 0), 3)
+    Proportion_All_With_Claims = 100 * round(sum(N_claims_year > 0) / Total_Policies * ifelse(Total_Policies > 0, 1, 0), 3),
+    Proportion_New_With_Claims = 100 * round(sum(N_claims_year[Year == Year_Start] > 0) / New_Policies * ifelse(New_Policies > 0, 1, 0), 3),
+    Proportion_Terminating_With_Claims = 100 * round(sum(N_claims_year[Year == Year_End] > 0, na.rm = TRUE) / Terminating_Policies * ifelse(Terminating_Policies > 0, 1, 0), 3)
   ) %>%
   mutate(Year = as.character(Year))
 
@@ -611,7 +612,8 @@ correlation_matrix_car
 # Display the correlation matrix for the vehicles :
 ggcorrplot(correlation_matrix_car,
            lab_size = 3,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkgreen", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 9),
     axis.text.y = element_text(size = 9),
@@ -641,7 +643,8 @@ correlation_matrix_policy
 # Display the correlation matrix :
 ggcorrplot(correlation_matrix_policy,
            lab_size = 3,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkgreen", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 9),
     axis.text.y = element_text(size = 9),
@@ -657,7 +660,8 @@ relevant_correlations
 
 ggcorrplot(relevant_correlations, 
            lab_size = 3,
-           ggtheme = theme_dark(base_size = 9)) +
+           ggtheme = theme_dark(base_size = 9),
+           colors = c("darkgreen", "white", "darkred")) +
   theme(
     axis.text.x = element_text(size = 9),
     axis.text.y = element_text(size = 9),
@@ -730,12 +734,23 @@ plot_grid(
 monthly_costs <- insurance_data %>%
   mutate(Year_Month = floor_date(Date_last_renewal, "month")) %>%
   group_by(Year_Month) %>%
-  summarize(Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
+  summarize(Total_Policies = n(),
             Total_Claims = sum(N_claims_year, na.rm = TRUE),
+            Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
             .groups = "drop")
 
+# Create the policies plot
+monthly_total_policies <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Policies)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Month", y = "Total Policies") +
+  scale_y_continuous(labels = label_number(scale = 1e-3, suffix = "k")) +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
 # Create the cost plot
-monthly_cost <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost)) +
+monthly_total_cost <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost)) +
   geom_point(color = "darkblue") +
   geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
   labs(x = "Month", y = "Total Cost") +
@@ -744,26 +759,41 @@ monthly_cost <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost)) +
   theme(text = element_text(size = 9))
 
 # Create the claims plot
-monthly_claims <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Claims)) +
+monthly_total_claims <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Claims)) +
   geom_point(color = "darkblue") +
   geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
   labs(x = "Month", y = "Total Claims") +
   theme_minimal() +
   theme(text = element_text(size = 9))
 
+# Create the cost per policy plot
+monthly_cost_per_policy <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost / Total_Policies)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Month", y = "Cost per Policy") +
+  theme_minimal() +
+  theme(text = element_text(size = 9))
+
 # Create the cost per claim plot
-monthly_ratio <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost / Total_Claims)) +
+monthly_cost_per_claim <- ggplot(monthly_costs, aes(x = Year_Month, y = Total_Cost / Total_Claims)) +
   geom_point(color = "darkblue") +
   geom_smooth(se = FALSE, method = "loess", size = 1, formula = y ~ x) +
   labs(x = "Month", y = "Cost per Claim") +
   theme_minimal() +
   theme(text = element_text(size = 9))
 
-# Timeline
+# Timeline totals
 plot_grid(
-  monthly_cost,
-  monthly_claims,
-  monthly_ratio,
+  monthly_total_policies,
+  monthly_total_cost,
+  monthly_total_claims,
+  ncol = 3, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+# Timeline averages
+plot_grid(
+  monthly_cost_per_policy,
+  monthly_cost_per_claim,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 
@@ -789,7 +819,7 @@ cost_policy_ratio <- function(x_var) {
     labs(x = x_var, y = "Cost Policy Ratio") +
     ylim(0, NA) +
     theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top")
+    theme(text = element_text(size = 8), legend.position = "top")
 }
 
 # Number of Policies compared to Power, Value_vehicle, Age and Driving_age
@@ -807,7 +837,7 @@ nb_policies <- function(x_var) {
     labs(x = x_var, y = "Nb Policies") +
     ylim(0, NA) +
     theme_minimal() +
-    theme(text = element_text(size = 9), legend.position = "top")
+    theme(text = element_text(size = 8), legend.position = "top")
 }
 
 plot_grid(
@@ -843,11 +873,18 @@ type_risk_summary <- insurance_data %>%
   )
 type_risk_summary
 
+# Define a custom color palette
+custom_colors_type_risk <- c("Agricultural vehicles" = "darkred",
+                             "Motorbikes" = "darkgreen",
+                             "Passenger cars" = "darkblue",
+                             "Vans" = "gray")
+
 # Claim Policy Ratio compared to Type Risk
 type_risk_claim_policy_ratio <-   type_risk_summary %>%
   ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Type_risk)) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(x = "Year", y = "Claim Policy Ratio") +
+  scale_fill_manual(values = custom_colors_type_risk) +
   ylim(0, NA) +
   theme_minimal() +
   theme(text = element_text(size = 9), legend.position = "top") +
@@ -858,6 +895,7 @@ type_risk_cost_policy_ratio <-   type_risk_summary %>%
   ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Type_risk)) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(x = "Year", y = "Cost Policy Ratio") +
+  scale_fill_manual(values = custom_colors_type_risk) +
   ylim(0, NA) +
   theme_minimal() +
   theme(text = element_text(size = 9), legend.position = "top") +
@@ -896,40 +934,128 @@ claims_summary <- claims_data %>%
   # Calculate cumulative counts
   group_by(Year) %>%
   mutate(Cumulative_claims = rev(cumsum(rev(Count_claims))),
-         percentage = Cumulative_claims / lag(Cumulative_claims),
-         percentage = ifelse(is.na(percentage), 100, percentage * 100)
+#         percentage = Cumulative_claims / lag(Cumulative_claims),
+#         percentage = ifelse(is.na(percentage), 0, percentage * 100),
+         percentage = 100 * lead(Cumulative_claims) / Cumulative_claims
   ) %>%
-  ungroup()
+  ungroup() %>%
+  filter(!is.na(percentage))
 
 # Display the resulting summary
 claims_summary
 
 # Risk of Raising a New Claim based on number of claims raised during the year
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
+risk_current_year <- claims_summary %>% filter(Cumulative_claims > 10) %>%
   ggplot(aes(x = Nb_claims, y = percentage)) +
   geom_point() +
   geom_smooth(method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Risk (%)") +
+  labs(x = "Number of Previous Claims (same year)", y = "Risk (%)") +
+  scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +
+  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
   theme_minimal() +
   theme(text = element_text(size = 9))
 
+# Risk of Raising a Claim the next year based on number of claims raised during the current year
+risk_tmp <- train_set %>% select(ID, N_claims_year, Cost_claims_year, Year) %>%
+  mutate(Next_Year = Year + 1)
+risk_df <- expand_grid(Year = unique(risk_tmp$Year), N_claims_year = unique(risk_tmp$N_claims_year)) %>%
+  rowwise() %>% 
+  mutate(
+    Current_Count = sum(risk_tmp$Year == Year & risk_tmp$N_claims_year == N_claims_year),
+    Next_Count = sum(risk_tmp$Year == Year + 1 & risk_tmp$N_claims_year > 0 & 
+                       risk_tmp$ID %in% risk_tmp$ID[risk_tmp$Year == Year & risk_tmp$N_claims_year == N_claims_year]),
+    Ratio = 100 * Next_Count / Current_Count
+  ) %>%
+  ungroup() %>%
+  arrange(Year, N_claims_year)
+
+# We don't display data for 2018 as there is nothing in 2019,
+# we also don't display data for N_claims_year over 20 as we don't have many observations
+risk_next_year <- risk_df %>%
+  filter(Current_Count >= 10 & Year < 2018) %>%
+  ggplot(aes_string(x = "N_claims_year", y = "Ratio")) +
+  geom_point() +
+  geom_smooth(method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "Number of Claims from Previous Year", y = "Risk(%)") +
+  scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) + 
+  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the 2 graphs :
+plot_grid(
+  risk_current_year,
+  risk_next_year,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+# Risk of raising at least one claim for new policy holder :
+risk_new_ph <- train_set %>%
+  filter(Year == year(Date_start_contract)) %>%
+  select(ID, Year, N_claims_year) %>%
+  group_by(Year) %>%
+  summarise(risk = 100 * sum(N_claims_year > 0) / n())
+
+ggplot(risk_new_ph, aes(x = factor(Year), y = risk)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(x = "Year", y = "Risk (%)") +
+  theme_minimal()
+
 # Risk of Raising a New Claim based on number of claims raised during the year :
 # Comparison between years
-claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
-  mutate(Year = as.factor(Year)) %>%
-  ggplot(aes(x = Nb_claims, y = percentage, color = Year)) +
-  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
-  labs(x = "Number of Previous Claims",
-       y = "Risk (%)") +
-  theme_minimal() +
-  theme(text = element_text(size = 9))
+#claims_summary %>% filter(Nb_claims > 0 & Cumulative_claims > 10) %>%
+#  mutate(Year = as.factor(Year)) %>%
+#  ggplot(aes(x = Nb_claims, y = percentage, color = Year)) +
+#  geom_smooth(se = FALSE, method = "loess", formula = y ~ x) +
+#  labs(x = "Number of Previous Claims",
+#       y = "Risk (%)") +
+#  theme_minimal() +
+#  theme(text = element_text(size = 9))
 
 # Risk of Raising a New Claim based on history (total claims raised)
 # We only display data for 2017 (last full year)
 risk_summary <- train_set %>%
   group_by(Year) %>%
   select(Year, ID, N_claims_year, Cost_claims_year, N_claims_history, R_Claims_history)
+
+# Risk vs N_claims_history
+risk_N_claims_history <- risk_summary %>%
+  group_by(N_claims_history) %>%
+  summarise(count = sum(N_claims_year > 0),
+            total = n(),
+            risk = 100 * count / total) %>%
+  filter(total > 5) %>%
+  ggplot(aes(x = N_claims_history, y = risk)) +
+  geom_point() +
+  geom_smooth(method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "N_claims_history", y = "Risk(%)") +
+  scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) + 
+  #  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Risk vs R_Claims_history
+risk_R_Claims_history <- risk_summary %>%
+  group_by(R_Claims_history) %>%
+  summarise(count = sum(N_claims_year > 0),
+            total = n(),
+            risk = 100 * count / total) %>%
+  filter(total > 10 & R_Claims_history < 10) %>%
+  ggplot(aes(x = R_Claims_history, y = risk)) +
+  geom_point() +
+  geom_smooth(method = "loess", size = 1, formula = y ~ x) +
+  labs(x = "R_Claims_history", y = "Risk(%)") +
+  scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) + 
+  #  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the 2 graphs :
+plot_grid(
+  risk_N_claims_history,
+  risk_R_Claims_history,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
 
 # Calculate average N_claims_year by N_claims_history
 avg_claims_N_hist <- risk_summary %>%
@@ -993,53 +1119,335 @@ plot_grid(
 )
 
 #########################################################
+#         5.3.3.3 Cost - History                        #
+#########################################################
+
+# Calculate counts, percentages, and average cost
+summary_cost <- train_set %>%
+  select(ID, Year, Age, Date_start_contract, N_claims_year, Cost_claims_year) %>%
+  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing"),
+         age_group = if_else(Age < 25, "Young", "Old")) %>%
+  group_by(Year, status, age_group) %>%
+  summarise(
+    count = n(),
+    total_cost = sum(Cost_claims_year, na.rm = TRUE),
+    average_cost = mean(Cost_claims_year, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Summary across all years
+summary_cost_all_years <- summary_cost %>%
+  group_by(status) %>%
+  summarise(
+    count = sum(count),
+    total_cost = sum(total_cost),
+    average_cost = round(total_cost / count, 2),
+  ) %>%
+  ungroup()
+
+# Define a custom color palette
+custom_colors_status <- c("New" = "darkgreen",
+                          "Ongoing" = "gray",
+                          "New-Old" = "gray",
+                          "New-Young" = "darkgreen",
+                          "Ongoing-Old" = "darkblue",
+                          "Ongoing-Young" = "darkred")
+
+# Plot the number of policies (new and ongoing) :
+cost_nb_policies <- summary_cost %>%
+  ggplot(aes(x = Year, y = count, fill = status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Policies") +
+  scale_fill_manual(values = custom_colors_status) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the total cost value (new and ongoing) :
+cost_total_value <- summary_cost %>%
+  ggplot(aes(x = Year, y = total_cost, fill = status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Total Cost") +
+  scale_y_continuous(labels = label_number(scale = 1e-6, suffix = "M")) +
+  scale_fill_manual(values = custom_colors_status) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the average cost value (new and ongoing) :
+cost_avg_value <- summary_cost %>%
+  ggplot(aes(x = Year, y = average_cost, fill = status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Average Cost") +
+  scale_fill_manual(values = custom_colors_status) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+
+# Plot the 3 graphs :
+plot_grid(
+  cost_nb_policies,
+  cost_total_value,
+#  cost_avg_value,
+  ncol = 2, align = 'hv'
+)
+
+# Average cost per age and status group :
+summary_cost_status <- summary_cost %>%
+  mutate(status = paste(status, age_group, sep = "-")) %>%
+  select(-age_group)
+cost_avg_status <- summary_cost_status %>%
+  ggplot(aes(x = Year, y = average_cost, fill = status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Year",
+       y = "Average Cost") +
+  scale_fill_manual(values = custom_colors_status) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+cost_avg_status
+
+#########################################################
 #         5.3.4 Cost - Policy                           #
 #########################################################
 
-# Claim Policy Ratio compared to Area
-area_summary <- insurance_data %>%
-  select(ID, Year, Area, N_claims_year, Cost_claims_year) %>%
-  group_by(Year, Area) %>%
-  summarize(
-    Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
-    Total_cost = sum(Cost_claims_year, na.rm = TRUE),
-    Nb_policies = n(),
-    .groups = 'drop'
-  ) %>%
-  mutate(
-    Year = as.factor(Year),
-    Area = recode(Area, `0` = "Rural", `1` = "Urban"),  # Recode Area
-    Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
-    Cost_Policy_Ratio = Total_cost / Nb_policies
-  )
+# Nb Policy function :
+nb_policy_binary <- function(data, var, labels) {
+  data %>%
+    select(ID, Year, !!sym(var), N_claims_year, Cost_claims_year) %>%
+    group_by(Year, !!sym(var)) %>%
+    summarize(Nb_policy_claims = sum(N_claims_year > 0, na.rm = TRUE),
+              Total_cost = sum(Cost_claims_year, na.rm = TRUE),
+              Nb_policies = n(),
+              .groups = 'drop') %>%
+    mutate(Year = as.factor(Year),
+           Claim_Policy_Ratio = Nb_policy_claims / Nb_policies,
+           Cost_Policy_Ratio = Total_cost / Nb_policies,
+           !!sym(var) := case_when(
+             !!sym(var) == 0 ~ labels[1],
+             !!sym(var) == 1 ~ labels[2]
+           ))
+}
+nb_policy_binary(train_set, "Area", c("Rural", "Urban"))
 
-area_summary
+# Claim Policy Ratio function :
+claim_policy_ratio_binary <- function(data, var, labels) {
+  # Define a custom color palette
+  custom_colors_label <- c("darkgreen", "gray")
+  
+  nb_policy_binary(data, var, labels) %>%
+    ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = !!sym(var))) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "Year", y = "Claim Policy Ratio") +
+    scale_fill_manual(values = custom_colors_label) +
+    ylim(0, NA) +
+    theme_minimal() +
+    theme(text = element_text(size = 9), legend.position = "top")
+}
 
-# Claim Policy Ratio compared to Area :
-area_claim_policy_ratio <-  area_summary %>%
-  ggplot(aes(x = Year, y = Claim_Policy_Ratio, fill = Area)) +
-  geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-  labs(x = "Year", y = "Claim Policy Ratio") +
-  ylim(0, NA) +
-  theme_minimal() +
-  theme(text = element_text(size = 9), legend.position = "top")
+# Cost Policy Ratio function :
+cost_policy_ratio_binary <- function(data, var, labels) {
+  # Define a custom color palette
+  custom_colors_label <- c("darkgreen", "gray")
+  
+  nb_policy_binary(data, var, labels) %>%
+    ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = !!sym(var))) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(x = "Year", y = "Cost Policy Ratio") +
+    scale_fill_manual(values = custom_colors_label) +
+    ylim(0, NA) +
+    theme_minimal() +
+    theme(text = element_text(size = 9), legend.position = "top")
+}
 
-# Cost Policy Ratio compared to Area :
-area_cost_policy_ratio <-  area_summary %>%
-  ggplot(aes(x = Year, y = Cost_Policy_Ratio, fill = Area)) +
-  geom_bar(stat = "identity", position = "dodge") +  # Use bar plot for binary Area
-  labs(x = "Year", y = "Cost Policy Ratio") +
-  ylim(0, NA) +
-  theme_minimal() +
-  theme(text = element_text(size = 9), legend.position = "top")
+# Claim and Cost Policy Ratio compared to Area :
+claim_policy_ratio_area <- claim_policy_ratio_binary(train_set, "Area", c("Rural", "Urban"))
+cost_policy_ratio_area <- cost_policy_ratio_binary(train_set, "Area", c("Rural", "Urban"))
 
 # Plot the 2 graphs :
 plot_grid(
-  area_claim_policy_ratio,
-  area_cost_policy_ratio,
+  claim_policy_ratio_area,
+  cost_policy_ratio_area,
   ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
 )
 
+# Cost Policy Ratio compared to Distribution channel and payment :
+cost_policy_ratio_channel <- cost_policy_ratio_binary(train_set, "Distribution_channel", c("Agent", "Broker"))
+cost_policy_ratio_payment <- cost_policy_ratio_binary(train_set, "Payment", c("Half yearly", "Annual"))
+
+# Cost Policy Ratio compared to Distribution channel and payment :
+nb_policy_binary(train_set, "Distribution_channel", c("Agent", "Broker"))
+nb_policy_binary(train_set, "Payment", c("Half yearly", "Annual"))
+
+# Plot the 2 graphs :
+plot_grid(
+  cost_policy_ratio_channel,
+  cost_policy_ratio_payment,
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+
+#########################################################
+#         6.1 Methodology                               #
+#########################################################
+
+# RMSE function
+RMSE <- function(costs, predictions) {
+  sqrt(mean((predictions - costs)^2))
+}
+
+# Define the new cutoff date
+cutoff_subset_date <- as.Date("2018-06-01")
+
+# Create train subset from train_set
+train_subset <- train_set %>%
+  filter(Date_last_renewal < cutoff_subset_date)
+nrow(train_subset)
+
+# and validation subset from train_set
+valid_subset <- train_set %>%
+  filter(Date_last_renewal >= cutoff_subset_date)
+nrow(valid_subset)
+
+# Initialise the results table :
+results <- tibble(Method = character(),
+                  RMSE = numeric(),
+                  Cost = numeric(),
+                  Estimation = numeric(),
+                  Diff = numeric())
+
+#########################################################
+#         6.2 Average                                   #
+#########################################################
+
+avg_cost <- mean(train_subset$Cost_claims_year)
+
+avg_cost_rmse <- RMSE(valid_subset$Cost_claims_year, avg_cost)
+total_cost_actuals <- sum(valid_subset$Cost_claims_year)
+total_cost_preds <- nrow(valid_subset) * avg_cost
+total_cost_diff <- total_cost_preds - total_cost_actuals
+
+# Update the results table :
+results <- results %>% add_row(Method = "Average (Baseline)",
+                               RMSE = round(avg_cost_rmse, 2),
+                               Cost = round(total_cost_actuals, 2),
+                               Estimation = round(total_cost_preds, 2),
+                               Diff = round(total_cost_diff, 2))
+results
+
+valid_subset %>% filter(valid_subset$Cost_claims_year == 0) %>% nrow() / nrow(valid_subset)
+valid_subset %>% filter(valid_subset$Cost_claims_year > 500) %>% nrow() / nrow(valid_subset)
+mean(valid_subset %>% filter(valid_subset$Cost_claims_year > 500) %>% pull(Cost_claims_year))
+max(valid_subset %>% filter(valid_subset$Cost_claims_year > 500) %>% pull(Cost_claims_year))
+
+#########################################################
+#         6.3 Machine Learning                          #
+#########################################################
+
+# Exit the script
+stop("Stopping the script.")
+
+# Start timing
+start_time <- Sys.time()
+start_time
+
+# Add library
+library(caret)
+
+# Generalized Linear Model (GLM) :
+train_subset_clean <- train_subset[, colSums(is.na(train_subset)) == 0]
+train_glm <- train(Cost_claims_year ~ ., method = "glm", data = train_subset_clean)
+y_hat_glm <- predict(train_glm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_glm)
+sum(valid_subset$Cost_claims_year)
+sum(y_hat_glm)
+
+# End timing
+end_time <- Sys.time()
+end_time
+end_time - start_time
+
+
+# Start timing
+start_time <- Sys.time()
+
+str(train_subset_clean)
+
+# Generalized Linear Model (GLM):
+# Define the columns you want to use
+selected_columns <- c("Date_last_renewal", "R_Claims_history", "Type_risk", "N_claims_history",
+                      "Area", "Second_driver", "Age", "Distribution_channel", "Value_vehicle",
+                      "Driving_age", "Seniority", "Power", "Payment", "Year_matriculation",
+                      "Policies_in_force")
+
+# Function to train GLM and calculate RMSE
+train_and_evaluate <- function(columns) {
+  # Create the formula dynamically for the selected columns
+  formula <- as.formula(paste("Cost_claims_year ~", paste(columns, collapse = " + ")))
+  
+  # Train the model
+  train_glm <- train(formula, method = "glm", data = train_subset_clean)
+  
+  # Make predictions
+  y_hat_glm <- predict(train_glm, valid_subset, type = "raw")
+  
+  # Calculate RMSE
+  rmse_value <- RMSE(valid_subset$Cost_claims_year, y_hat_glm)
+  
+  return(data.frame(Columns = paste(columns, collapse = ", "), RMSE = rmse_value))
+}
+
+# Run the function for increasing slices of selected columns and store results
+results <- do.call(rbind, lapply(1:length(selected_columns), 
+                                 function(i) train_and_evaluate(selected_columns[1:i])))
+
+# Print results
+print(results)
+
+# End timing
+end_time <- Sys.time()
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+# CART :
+train_rpart <- train(Cost_claims_year ~ .,
+                     method = "rpart",
+                     tuneGrid = data.frame(cp = seq(0, 0.05, len = 25)),
+                     data = train_subset_clean)
+ggplot(train_rpart)
+y_hat_rpart <- predict(train_rpart, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_rpart)
+sum(valid_subset$Cost_claims_year)
+sum(y_hat_rpart)
+
+# Random Forest :
+nodesize <- seq(1, 51, 10)
+acc <- sapply(nodesize, function(ns){
+  train(Cost_claims_year ~ ., method = "rf", data = train_subset_clean,
+        tuneGrid = data.frame(mtry = 2),
+        nodesize = ns)$results$Accuracy
+})
+qplot(nodesize, acc)
+
+train_rf_2 <- randomForest(Cost_claims_year ~ ., data = train_subset_clean,
+                           nodesize = nodesize[which.max(acc)])
+
+# Compare all models :
+models <- c("glm", "lda", "naive_bayes", "svmLinear", "knn", "gamLoess", "multinom", "qda", "rf", "adaboost")
+set.seed(1, sample.kind = "Rounding")
+fits <- lapply(models, function(model){ 
+  print(model)
+  train(Cost_claims_year ~ ., method = model, data = train_subset_clean)
+}) 
+names(fits) <- models
+pred <- sapply(fits, function(object) 
+  predict(object, newdata = valid_subset))
+dim(pred)
+#acc <- colMeans(pred == valid_subset$Cost_claims_year)
+#acc
+#votes <- rowMeans(pred == "7")
+#y_hat <- ifelse(votes > 0.5, "7", "2")
+#mean(y_hat == mnist_27$test$y)
 
 #########################################################
 #         X. Following                                  #
@@ -1047,6 +1455,27 @@ plot_grid(
 
 # Exit the script
 stop("Stopping the script.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 train_set
 train_set %>%
