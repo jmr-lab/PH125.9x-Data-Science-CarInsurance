@@ -16,6 +16,7 @@ library(stringr)
 library(scales)
 #library(glue)
 library(purrr)
+library(caret)
 
 #########################################################
 #         3. Dataset                                    #
@@ -1294,6 +1295,20 @@ RMSE <- function(costs, predictions) {
   sqrt(mean((predictions - costs)^2))
 }
 
+# Add status column (New or Ongoing) :
+train_set <- train_set %>%
+  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing"))
+test_set <- test_set %>%
+  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing"))
+
+# We remove unneeded columns :
+# Premium and N_claims_year as they contain values that are related to Cost_claims_year
+# and all columns containing NA values
+train_set <- train_set[, colSums(is.na(train_set)) == 0] %>%
+  select(-Premium, -N_claims_year, -Year)
+test_set <- test_set[, colSums(is.na(test_set)) == 0] %>%
+  select(-Premium, -N_claims_year, -Year)
+
 # Define the new cutoff date
 cutoff_subset_date <- as.Date("2018-06-01")
 
@@ -1342,19 +1357,381 @@ max(valid_subset %>% filter(valid_subset$Cost_claims_year > 500) %>% pull(Cost_c
 #         6.3 Machine Learning                          #
 #########################################################
 
+
 # Exit the script
 stop("Stopping the script.")
+
+# 1 Variable
+
+# Calculate the RMSE using linear model on every column of the data frame train_subset / valid_subset :
+# Initialize a vector to store RMSE values
+rmse_values <- numeric()
+
+# Get the column names excluding 'Cost_claims_year'
+predictors <- names(train_subset)[names(train_subset) != "Cost_claims_year"]
+
+# Loop through each predictor, fit the model, and calculate RMSE
+for (predictor in predictors) {
+  # Fit the linear model
+  formula <- as.formula(paste("Cost_claims_year ~", predictor))
+  train_lm <- train(formula, method = "lm", data = train_subset)
+  
+  # Make predictions on the validation set
+  y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+  
+  # Calculate RMSE and store it in the vector
+  rmse <- RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+  rmse_values <- c(rmse_values, rmse)
+}
+
+# Create a data frame to display the predictors with their corresponding RMSE
+rmse_results <- data.frame(Predictor = predictors, RMSE = rmse_values)
+
+# Order the results by RMSE from lowest to highest
+rmse_results <- rmse_results[order(rmse_results$RMSE), ]
+
+# View the RMSE results
+print(rmse_results)
+
+# RMSE : 476.9412
+train_lm <- train(Cost_claims_year ~ ., method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+# RMSE : 492.6689
+train_lm <- train(Cost_claims_year ~ Lapse +
+                    Payment +
+                    Policies_in_force +
+                    Second_driver +
+                    R_Claims_history, method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+# RMSE : 469.1506
+train_lm <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+# RMSE : 469.3376
+train_lm <- train(Cost_claims_year ~ Date_last_renewal +
+                    R_Claims_history +
+                    Type_risk +
+                    Second_driver +
+                    Age +
+                    Distribution_channel, method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+# RMSE : 467.6111
+train_lm <- train(Cost_claims_year ~ Date_last_renewal +
+                    R_Claims_history +
+                    Max_policies, method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+# RMSE : 467.5339
+train_lm <- train(Cost_claims_year ~ Date_last_renewal +
+                    R_Claims_history, method = "lm", data = train_subset)
+y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+train_model <- train(Cost_claims_year ~ Date_last_renewal +
+                    R_Claims_history, method = "gamLoess", data = train_subset)
+y_hat <- predict(train_model, valid_subset, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat)
+
+# Exit the script
+stop("Stopping the script.")
+
+# 2 Variables
+
+# Initialize a vector to store RMSE values
+rmse_values <- numeric()
+
+# Get the column names excluding 'Cost_claims_year'
+predictors <- names(train_subset)[names(train_subset) != "Cost_claims_year"]
+
+# Ensure 'Date_last_renewal' is in the predictor set
+if (!"Date_last_renewal" %in% predictors) {
+  stop("Date_last_renewal must be in the predictors")
+}
+
+# Generate combinations including Date_last_renewal with every other predictor
+other_predictors <- predictors[predictors != "Date_last_renewal"]
+combinations <- lapply(other_predictors, function(pred) c("Date_last_renewal", pred))
+
+# Loop through each combination of predictors, fit the model, and calculate RMSE
+for (combination in combinations) {
+  # Create the formula for the linear model with two predictors
+  formula <- as.formula(paste("Cost_claims_year ~", paste(combination, collapse = " + ")))
+  train_lm <- train(formula, method = "lm", data = train_subset)
+  
+  # Make predictions on the validation set
+  y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+  
+  # Calculate RMSE and store it in the vector
+  rmse <- RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+  rmse_values <- c(rmse_values, rmse)
+}
+
+# Create a data frame to display the combinations with their corresponding RMSE
+rmse_results <- data.frame(Combination = sapply(combinations, paste, collapse = " + "), RMSE = rmse_values)
+
+# Order the results by RMSE from lowest to highest
+rmse_results <- rmse_results[order(rmse_results$RMSE), ]
+
+# View the RMSE results
+print(rmse_results)
+
+# Exit the script
+stop("Stopping the script.")
+
+# 3 Variables
+
+# Initialize a vector to store RMSE values
+rmse_values <- numeric()
+
+# Get the column names excluding 'Cost_claims_year'
+predictors <- names(train_subset)[names(train_subset) != "Cost_claims_year"]
+
+# Ensure 'Date_last_renewal' is in the predictor set
+if (!"Date_last_renewal" %in% predictors) {
+  stop("Date_last_renewal must be in the predictors")
+}
+
+# Generate combinations including Date_last_renewal with every pair of other predictors
+other_predictors <- predictors[predictors != "Date_last_renewal"]
+combinations <- combn(other_predictors, 2, simplify = FALSE)
+
+# Add Date_last_renewal to each combination
+combinations <- lapply(combinations, function(preds) c("Date_last_renewal", preds))
+
+# Loop through each combination of predictors, fit the model, and calculate RMSE
+for (combination in combinations) {
+  # Create the formula for the linear model with three predictors
+  formula <- as.formula(paste("Cost_claims_year ~", paste(combination, collapse = " + ")))
+  train_lm <- train(formula, method = "lm", data = train_subset)
+  
+  # Make predictions on the validation set
+  y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+  
+  # Calculate RMSE and store it in the vector
+  rmse <- RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+  rmse_values <- c(rmse_values, rmse)
+}
+
+# Create a data frame to display the combinations with their corresponding RMSE
+rmse_results <- data.frame(Combination = sapply(combinations, paste, collapse = " + "), RMSE = rmse_values)
+
+# Order the results by RMSE from lowest to highest
+rmse_results <- rmse_results[order(rmse_results$RMSE), ]
+
+# View the RMSE results
+print(rmse_results)
+
+# Exit the script
+stop("Stopping the script.")
+
+# 4 variables :
+
+# Initialize a vector to store RMSE values
+rmse_values <- numeric()
+
+# Get the column names excluding 'Cost_claims_year'
+predictors <- names(train_subset)[names(train_subset) != "Cost_claims_year"]
+
+# Ensure 'Date_last_renewal' and 'R_Claims_history' are in the predictor set
+if (!"Date_last_renewal" %in% predictors || !"R_Claims_history" %in% predictors) {
+  stop("Both Date_last_renewal and R_Claims_history must be in the predictors")
+}
+
+# Get the remaining predictors after excluding Date_last_renewal and R_Claims_history
+remaining_predictors <- predictors[!predictors %in% c("Date_last_renewal", "R_Claims_history")]
+
+# Generate combinations including Date_last_renewal and R_Claims_history with every pair of other predictors
+combinations <- combn(remaining_predictors, 2, simplify = FALSE)
+
+# Add Date_last_renewal and R_Claims_history to each combination
+combinations <- lapply(combinations, function(preds) c("Date_last_renewal", "R_Claims_history", preds))
+
+# Loop through each combination of predictors, fit the model, and calculate RMSE
+for (combination in combinations) {
+  # Create the formula for the linear model with four predictors
+  formula <- as.formula(paste("Cost_claims_year ~", paste(combination, collapse = " + ")))
+  train_lm <- train(formula, method = "lm", data = train_subset)
+  
+  # Make predictions on the validation set
+  y_hat_lm <- predict(train_lm, valid_subset, type = "raw")
+  
+  # Calculate RMSE and store it in the vector
+  rmse <- RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+  rmse_values <- c(rmse_values, rmse)
+}
+
+# Create a data frame to display the combinations with their corresponding RMSE
+rmse_results <- data.frame(Combination = sapply(combinations, paste, collapse = " + "), RMSE = rmse_values)
+
+# Order the results by RMSE from lowest to highest
+rmse_results <- rmse_results[order(rmse_results$RMSE), ]
+
+# View the RMSE results
+print(rmse_results)
+
+# Exit the script
+stop("Stopping the script.")
+
+
+
+
+
+train_subset %>%
+  filter(Date_last_renewal > as.Date("2018-04-01")) %>%
+  summarise(avg_cost_2 = mean(Cost_claims_year))
+RMSE(valid_subset$Cost_claims_year, y)
+# Assuming valid_subset$Cost_claims_year is your actual values
+results <- sapply(1:300, function(y) RMSE(valid_subset$Cost_claims_year, y))
+# View the results
+min(results)
+which.min(results)
+RMSE(valid_subset$Cost_claims_year, 49)
+mean(valid_subset$Cost_claims_year)
+train_set
+
+# Filter data for the months April to August 2018
+filtered_data <- train_set %>%
+  filter(Date_last_renewal >= as.Date("2018-04-01") & Date_last_renewal <= as.Date("2018-08-31"))
+
+# Group by week and calculate the average cost
+average_cost_per_week <- filtered_data %>%
+#  group_by(Week = floor_date(Date_last_renewal, "week")) %>%
+  group_by(Week = floor_date(Date_last_renewal, "day")) %>%
+  summarise(Average_Cost = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  ungroup()
+
+# Display the results
+average_cost_per_week
+
+# Create the plot
+ggplot(average_cost_per_week, aes(x = Week, y = Average_Cost)) +
+  geom_line() +  # Add line connecting points
+  geom_point() +  # Add points for each week's average cost
+  labs(title = "Average Cost per Week (April-August 2018)",
+       x = "Week",
+       y = "Average Cost") +
+  theme_minimal() +  # Use a minimal theme
+  scale_x_date(date_labels = "%b %d", breaks = "1 week")  # Format x-axis labels
+
+# Assuming 'Date_start_contract' and 'Date_last_renewal' are the date columns
+date_columns <- c("Date_start_contract", "Date_last_renewal")
+
+# Loop through each date column and convert to numeric
+for (date_col in date_columns) {
+  train_subset[[date_col]] <- as.numeric(as.POSIXct(train_subset[[date_col]]))
+  valid_subset[[date_col]] <- as.numeric(as.POSIXct(valid_subset[[date_col]]))
+}
+
+# Set control parameters for RFE
+control <- rfeControl(functions = lmFuncs,
+                      method = "cv",
+                      number = 10)
+
+# Execute RFE
+results <- rfe(train_subset[, -which(names(train_subset) == "Cost_claims_year")],
+               train_subset$Cost_claims_year,
+               sizes = c(1:25),
+               rfeControl = control)
+
+# View the results
+print(results)
+
+
+# Run Recursive Feature Elimination (RFE)
+results <- rfe(train_subset[, -which(names(train_subset) == "Cost_claims_year")],
+               train_subset$Cost_claims_year,
+               sizes = c(1:25),
+               rfeControl = control)
+
+# Extract the RMSE and number of Variables
+rmses <- results$results$RMSE
+sizes <- results$results$Variables
+
+# Initialize an empty list to hold variable names corresponding to each size
+feature_names <- vector("list", length(sizes))
+
+# Populate the list with variable names for each size
+for (i in seq_along(sizes)) {
+  feature_names[[i]] <- paste(results$optVariables[1:sizes[i]], collapse = ", ")
+}
+
+# Create a data frame to display variable names along with their associated RMSE
+rmse_table <- data.frame(
+  Features = feature_names,
+  RMSE = rmses
+)
+
+# View the results
+print(rmse_table)
+
+# Filter the data frame to show only the 10 rows with the lowest RMSE
+lowest_rmse_table <- rmse_table[order(rmse_table$RMSE), ][1:2, ]
+
+# View the filtered results
+print(lowest_rmse_table)
+
+model <- glm(Cost_claims_year ~ Lapse + Payment + Policies_in_force + Second_driver + R_Claims_history, 
+             data = train_subset_clean, 
+             family = gaussian())  # or another appropriate family
+summary(model)
+
+
+
+train_lm <- train(Cost_claims_year ~ ., method = "lm", data = train_subset_clean)
+y_hat_lm <- predict(train_lm, valid_subset_clean, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+train_lm <- train(Cost_claims_year ~ Lapse + Payment + Policies_in_force + Second_driver + R_Claims_history, method = "lm", data = train_subset_clean)
+y_hat_lm <- predict(train_lm, valid_subset_clean, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+train_lm <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset_clean)
+y_hat_lm <- predict(train_lm, valid_subset_clean, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+train_lm <- train(Cost_claims_year ~ Date_last_renewal +
+                    R_Claims_history +
+                    Type_risk +
+                    Second_driver +
+                    Age +
+                    Distribution_channel, method = "rf", data = train_subset_clean)
+y_hat_lm <- predict(train_lm, valid_subset_clean, type = "raw")
+RMSE(valid_subset$Cost_claims_year, y_hat_lm)
+
+
+# Full model
+full_model <- lm(Cost_claims_year ~ ., data = train_subset_clean)
+
+# Stepwise selection
+step_model <- step(full_model, direction = "both", trace = FALSE)
+
+# Summary of the final model
+summary(step_model)
+
+# Calculate RMSE
+predictions <- predict(step_model, newdata = valid_subset_clean)
+rmse <- sqrt(mean((predictions - valid_subset_clean$Cost_claims_year)^2))
+print(rmse)
 
 # Start timing
 start_time <- Sys.time()
 start_time
 
-# Add library
-library(caret)
 
 # Generalized Linear Model (GLM) :
-train_subset_clean <- train_subset[, colSums(is.na(train_subset)) == 0]
-train_glm <- train(Cost_claims_year ~ ., method = "glm", data = train_subset_clean)
+train_subset_clean <- train_subset[, colSums(is.na(train_subset)) == 0] %>%
+  select(-Premium, -N_claims_year)
+valid_subset_clean <- valid_subset[, colSums(is.na(valid_subset)) == 0] %>%
+  select(-Premium, -N_claims_year)
+train_glm <- train(Cost_claims_year ~ Lapse + Payment + Policies_in_force + Second_driver + R_Claims_history, method = "glm", data = train_subset_clean)
 y_hat_glm <- predict(train_glm, valid_subset, type = "raw")
 RMSE(valid_subset$Cost_claims_year, y_hat_glm)
 sum(valid_subset$Cost_claims_year)
@@ -1384,10 +1761,10 @@ train_and_evaluate <- function(columns) {
   formula <- as.formula(paste("Cost_claims_year ~", paste(columns, collapse = " + ")))
   
   # Train the model
-  train_glm <- train(formula, method = "glm", data = train_subset_clean)
+  train_glm <- train(formula, method = "lm", data = train_subset_clean)
   
   # Make predictions
-  y_hat_glm <- predict(train_glm, valid_subset, type = "raw")
+  y_hat_glm <- predict(train_glm, valid_subset_clean, type = "raw")
   
   # Calculate RMSE
   rmse_value <- RMSE(valid_subset$Cost_claims_year, y_hat_glm)
@@ -1410,10 +1787,11 @@ duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
 cat("Time taken:", duration, "seconds\n")
 
 # CART :
-train_rpart <- train(Cost_claims_year ~ .,
+train_rpart <- train(Cost_claims_year ~ Date_last_renewal +
+                       R_Claims_history,
                      method = "rpart",
                      tuneGrid = data.frame(cp = seq(0, 0.05, len = 25)),
-                     data = train_subset_clean)
+                     data = train_subset)
 ggplot(train_rpart)
 y_hat_rpart <- predict(train_rpart, valid_subset, type = "raw")
 RMSE(valid_subset$Cost_claims_year, y_hat_rpart)
@@ -1433,11 +1811,12 @@ train_rf_2 <- randomForest(Cost_claims_year ~ ., data = train_subset_clean,
                            nodesize = nodesize[which.max(acc)])
 
 # Compare all models :
-models <- c("glm", "lda", "naive_bayes", "svmLinear", "knn", "gamLoess", "multinom", "qda", "rf", "adaboost")
+models <- c("glm", "knn", "gamLoess", "multinom", "qda", "rf", "adaboost")
 set.seed(1, sample.kind = "Rounding")
 fits <- lapply(models, function(model){ 
   print(model)
-  train(Cost_claims_year ~ ., method = model, data = train_subset_clean)
+  train(Cost_claims_year ~ Date_last_renewal +
+          R_Claims_history, method = model, data = train_subset)
 }) 
 names(fits) <- models
 pred <- sapply(fits, function(object) 

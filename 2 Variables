@@ -1,0 +1,24 @@
+                                Combination     RMSE
+22     Date_last_renewal + R_Claims_history 467.5339
+11        Date_last_renewal + Second_driver 468.8165
+20     Date_last_renewal + N_claims_history 468.9591
+5          Date_last_renewal + Max_policies 469.0897
+16              Date_last_renewal + N_doors 469.2059
+17               Date_last_renewal + Weight 469.2377
+6          Date_last_renewal + Max_products 469.2628
+14    Date_last_renewal + Cylinder_capacity 469.3370
+7                 Date_last_renewal + Lapse 469.3518
+10                 Date_last_renewal + Area 469.3682
+9             Date_last_renewal + Type_risk 469.4920
+1                    Date_last_renewal + ID 469.5173
+3  Date_last_renewal + Distribution_channel 469.9110
+12   Date_last_renewal + Year_matriculation 470.1030
+4     Date_last_renewal + Policies_in_force 470.1873
+15        Date_last_renewal + Value_vehicle 470.2876
+21            Date_last_renewal + Seniority 470.3033
+18                  Date_last_renewal + Age 470.3082
+13                Date_last_renewal + Power 470.8419
+19          Date_last_renewal + Driving_age 470.9626
+8               Date_last_renewal + Payment 471.0259
+2   Date_last_renewal + Date_start_contract 471.3370
+23               Date_last_renewal + status 472.5831
