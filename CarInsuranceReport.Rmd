@@ -914,9 +914,28 @@ The RMSE indicates a relatively high level of error in the predictions, indicati
 
 This initial model serves as a baseline for our analysis and will be used to benchmark the performance of our other prediction algorithms.
 
+## 6.3 Linear Model
+
+The resulting RMSE and total costs for the Linear Model will be : 
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (1)",
+                             "Linear Model (2)"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2.5cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The RMSE is a litle bit lower, and the error is significantly lower with "only" a 56% overestimation compared to the average method.
+
+Note that if we use more variables to predict the cost, we get a higher RMSE but a much lower error in total cost prediction with "only" an overestimation of 200,000 or 39%.
+
 \newpage
 
-## 6.3 Linear Regression
+## 6.4 Linear Regression
 
 Substituting the optimal \( x^* \) back into \( RMSE(x) \):
 
