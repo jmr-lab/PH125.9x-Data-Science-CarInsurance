@@ -930,37 +930,120 @@ data_summary <- results %>%
         filter(Method %in% c("Average (Baseline)"))
 kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
-  column_spec(2:ncol(data_summary), width = "2.5cm") %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
   row_spec(0, bold = TRUE)
 ```
 
-The RMSE indicates a relatively high level of error in the predictions, indicating that the estimated costs are significantly inflated compared to the actual values, particularly since many policies have no associated costs. Specifically, the estimated cost exceeds the actual value by nearly 1.5 million, which constitutes an increase of approximately 280%.
+The RMSE indicates a relatively high level of error in the predictions, indicating that the estimated costs are significantly inflated compared to the actual values, particularly since many policies have no associated costs. Specifically, the estimated cost exceeds the actual value of 520,282.20 by nearly 1.5 million, which constitutes an increase of approximately 280%.
 
 Additionaly, the accuracy with a value of 0.1% is very low, and show that only 0.1% of the predicted values are within a range of 10 units from the actual value.
 This initial model serves as a baseline for our analysis and will be used to benchmark the performance of our other prediction algorithms.
 
+Obviously, we could reduce further the RMSE by using the data from the validation set only, but we don't want to use this dataset yet.
+
 **Zero**
 
+Given that approximately `r round(100 * mean(train_subset$Cost_claims_year == 0), 2)`% of the observations don't have cost associated with them, we could also predict 0 as the cost and be sure the accuracy will be much higher. 
 
+If we do so, the metrics will be :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)", "Zero"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+We now have a lower RMSE, a good high accuracy, and while the relative error in lower (in absolute value), it is still not useful.
+
+We could predict a cost of 9.99 euros, below the 10 euros threshold for the accurancy, and get better results, but the relative error would still be too high :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)", "Zero", "9.99"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+\newpage
 
 ## 6.3 Linear Model
 
-The resulting RMSE and total costs for the Linear Model will be : 
+The next algorithm we will use is the linear regression model. In this model, we will consider the reduction in costs over time, and predict lower values in the validation set than in the training one.
+
+To do so, we will use the **lm** algorithm from the caret package to train our model :
+
+```{r, eval=FALSE}
+# Train the model using the lm linear regression :
+train <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset)
+
+# Predict the values :
+y_hat <- predict(train, valid_subset, type = "raw")
+```
+
+We will run the model on one variable first (Date_last_renewal), then 3 variables, and we will finish with 14 variables.
+The resulting RMSE, relative error and accuracy for the Linear Models will be : 
 
 ```{r, echo=FALSE}
 data_summary <- results %>%
         filter(Method %in% c("Average (Baseline)",
-                             "Linear Model (1)",
-                             "Linear Model (2)"))
+                             "Linear Model (1 Variable)",
+                             "Linear Model (3 Variables)",
+                             "Linear Model (14 Variables)"))
 kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
-  column_spec(2:ncol(data_summary), width = "2.5cm") %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
   row_spec(0, bold = TRUE)
 ```
 
-The RMSE is a litle bit lower, and the error is significantly lower with "only" a 56% overestimation compared to the average method.
+**RMSE**
 
-Note that if we use more variables to predict the cost, we get a higher RMSE but a much lower error in total cost prediction with "only" an overestimation of 200,000 or 39%.
+The linear model using one variable demonstrates improvement, reflecting better alignment between predictions and actual results. The model with three variables enhances performance further; however, the model with fourteen variables experiences a slight increase in RMSE, suggesting potential overfitting, as adding more variables did not lead to improved predictions.
+
+**Relative Error**
+
+The linear model utilising one variable shows a notable decrease in relative error, indicating better predictive accuracy. The three-variable model continues this trend, slightly lowering the relative error further. Interestingly, the fourteen-variable model achieves the lowest relative error, suggesting it effectively captures more subtle relationships in the data despite its increased complexity.
+
+**Accuracy**
+
+The linear model with one variable shows a moderate improvement, indicating that a larger portion of predictions aligns more closely with actual values. The three-variable model surprisingly experiences a slight decrease in accuracy, which may imply that the introduction of certain predictors introduced noise. In contrast, the fourteen-variable model achieves the highest accuracy, signifying that while complexity can pose challenges, it can yield more correct predictions when relevant variables are effectively utilised.
+
+\newpage
+
+**Polynomial Regression**
+
+We can further improve our model by using a Polynomial Regression to predict the costs :
+
+```{r, eval=FALSE}
+# Train the model using the lm linear regression :
+train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", data = train_subset)
+
+# Predict the values :
+y_hat <- predict(train, valid_subset, type = "raw")
+```
+
+We can notice that even with one predictor, the results are much better :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (1 Variable)",
+                             "Polynomial Regression"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The RMSE is one of the lowest ones so far, the relative error is now -1.3%, and the accuracy almost 10%.
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Total Cost per Week", fig.height=3}
+weekly_summary_plot
+```
 
 \newpage
 

@@ -1398,11 +1398,20 @@ results
 
 zero <- 0
 
+# Number of 0 cost observations in the train set :
+mean(train_subset$Cost_claims_year == 0)
+
 # Predict the values (use zero) :
 y_hat <- rep(zero, nrow(valid_subset))
 
 # Update the results table :
 results <- update_results(valid_subset, y_hat, "Zero")
+results
+
+y_hat <- rep(9.99, nrow(valid_subset))
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "9.99")
 results
 
 #########################################################
@@ -1472,6 +1481,10 @@ results
 valid_subset <- valid_subset %>%
   mutate(lm_14 = y_hat)
 
+#########################################################
+#         6.4 Polynomial Regression                     #
+#########################################################
+
 # Linear Model with 1 parameter and polynomial regression :
 # RMSE = 474.2981
 # Error = 0.562
@@ -1481,7 +1494,7 @@ train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", dat
 y_hat <- predict(train, valid_subset, type = "raw")
 
 # Update the results table :
-results <- update_results(valid_subset, y_hat, "Linear Model (Polynomial Regression)")
+results <- update_results(valid_subset, y_hat, "Polynomial Regression")
 results
 
 # Update the valid_subset with the predictions :
@@ -1506,22 +1519,25 @@ weekly_summary <- valid_subset %>%
   )
 
 # Plot the weekly summary :
-weekly_summary %>%
+weekly_summary_plot <- weekly_summary %>%
   ggplot(aes(x = Week)) +
-  geom_line(aes(y = Total_Cost, color = "Total Cost"), linetype = "dashed", size = 1) +
-  geom_line(aes(y = Total_lm_1, color = "Total_lm_1"), size = 1) +
-#  geom_line(aes(y = Total_lm_3, color = "Total_lm_3"), size = 1) +
-  geom_line(aes(y = Total_lm_14, color = "Total_lm_14"), size = 1) +
-  geom_line(aes(y = Total_lm_pr, color = "Total_lm_pr"), size = 1) +
+  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = Total_lm_1, color = "Linear Model 1"), size = 1) +
+#  geom_line(aes(y = Total_lm_3, color = "Linear Model 3"), size = 1) +
+  geom_line(aes(y = Total_lm_14, color = "Linear Model 14"), size = 1) +
+  geom_line(aes(y = Total_lm_pr, color = "Polynomial Regression"), size = 1) +
   labs(x = "Week", y = "Values") +
   scale_color_manual(name = "Legend", 
-                     values = c("Total Cost" = "darkgrey",
-                                "Total_lm_1" = "darkblue",
-#                                "Total_lm_3" = "darkorange",
-                                "Total_lm_14" = "darkgreen",
-                                "Total_lm_pr" = "darkred"
+                     values = c("Cost" = "darkgrey",
+                                "Linear Model 1" = "darkblue",
+#                                "Linear Model 3" = "darkorange",
+                                "Linear Model 14" = "darkgreen",
+                                "Polynomial Regression" = "darkred"
                      )) +
-  theme_minimal()
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+weekly_summary_plot
 
 # Plot the difference (error) between the prediction and the real cost :
 # Reshape data for ggplot using pivot_longer
@@ -1620,12 +1636,53 @@ RMSE(valid_subset$Cost_claims_year, y_hat)
 # Exit the script
 stop("Stopping the script.")
 
+##############################################
+# Will a policy holder submit a claim        #
+##############################################
 
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
 
+set.seed(123)
+# Build the neural network model
+model <- neuralnet(
+  Claim ~ .,
+  data = train_subset_dnn,
+  hidden = c(6, 4, 2, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
 
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
 
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
 
+str(train_subset_dnn)
+# Save the model
+save(model, file = "neural_network_model.RData")
 
+# Load the model
+load("neural_network_model.RData")
+
+# Plot the model
+plot(model, rep = "best")
+
+# Make predictions on the scaled validation set
+pred <- predict(model, valid_subset_dnn)
+# Convert predictions to binary outcomes
+pred <- ifelse(pred > 0.5, 1, 0)
+# Inverse normalization for the predictions
+#pred <- pred * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+
+# Accuracy is 0.9997186 (99.97%) :
+accuracy <- mean(pred == valid_subset_dnn$Claim)
+accuracy
 
 
 
