@@ -1309,13 +1309,15 @@ get_accuracy <- function(costs, predictions) {
 cutoff_subset_date <- as.Date("2018-06-01")
 
 # Create train subset from train_set
-# Add status column (New or Ongoing),
+# Add Status column (New or Ongoing),
+# Claim to indicate 1 if there is a claim or more, 0 otherwise, 
 # and remove unneeded columns :
 # Premium and N_claims_year as they contain values that are related to Cost_claims_year
 # and all columns containing NA values
 train_subset <- train_set %>%
   filter(Date_last_renewal < cutoff_subset_date) %>%
-  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing")) %>%
+  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
   select(where(~ !any(is.na(.)))) %>%
   select(-Premium, -N_claims_year, -Year)
 nrow(train_subset)
@@ -1323,14 +1325,16 @@ nrow(train_subset)
 # Create a validation subset from train_set the same way :
 valid_subset <- train_set %>%
   filter(Date_last_renewal >= cutoff_subset_date) %>%
-  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing")) %>%
+  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
   select(where(~ !any(is.na(.)))) %>%
   select(-Premium, -N_claims_year, -Year)
 nrow(valid_subset)
 
 # And add/remove columns on the test set the same way :
 test_set <- test_set %>%
-  mutate(status = if_else(year(Date_start_contract) == Year, "New", "Ongoing")) %>%
+  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
   select(where(~ !any(is.na(.)))) %>%
   select(-Premium, -N_claims_year, -Year)
 
@@ -1362,13 +1366,16 @@ update_results <- function(validation_set, predictions, title) {
 
 
 #########################################################
-#         6.2 Average                                   #
+#         6.2 Averages                                  #
 #########################################################
 
 # Average for all values of all dates within the train_subset :
 avg_cost <- mean(train_subset$Cost_claims_year)
+
+# Predict the values (use the average) :
 y_hat <- rep(avg_cost, nrow(valid_subset))
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Average (Baseline)")
 results
 
@@ -1378,8 +1385,10 @@ avg_cost_3m <- train_subset %>%
   summarise(avg = mean(Cost_claims_year)) %>%
   pull(avg)
 
+# Predict the values (use the average) :
 y_hat <- rep(avg_cost_3m, nrow(valid_subset))
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Average (last 3 months)")
 results
 
@@ -1389,7 +1398,10 @@ results
 
 zero <- 0
 
+# Predict the values (use zero) :
 y_hat <- rep(zero, nrow(valid_subset))
+
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Zero")
 results
 
@@ -1401,8 +1413,11 @@ results
 # RMSE = 469.1506
 # Error = 0.651
 train <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset)
+
+# Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Linear Model (1 Variable)")
 results
 
@@ -1416,8 +1431,11 @@ valid_subset <- valid_subset %>%
 train <- train(Cost_claims_year ~ Date_last_renewal +
                     R_Claims_history +
                     Second_driver, method = "lm", data = train_subset)
+
+# Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Linear Model (3 Variables)")
 results
 
@@ -1441,9 +1459,12 @@ train <- train(Cost_claims_year ~ Date_last_renewal +
                       Value_vehicle +
                       Payment +
                       Year_matriculation +
-                      status, method = "lm", data = train_subset)
+                      Status, method = "lm", data = train_subset)
+
+# Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Linear Model (14 Variables)")
 results
 
@@ -1455,14 +1476,21 @@ valid_subset <- valid_subset %>%
 # RMSE = 474.2981
 # Error = 0.562
 train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", data = train_subset)
+
+# Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
 
+# Update the results table :
 results <- update_results(valid_subset, y_hat, "Linear Model (Polynomial Regression)")
 results
 
 # Update the valid_subset with the predictions :
 valid_subset <- valid_subset %>%
   mutate(lm_pr = y_hat)
+
+#########################################################
+#         6.4 Plots                                     #
+#########################################################
 
 # Calculate weekly summary data :
 weekly_summary <- valid_subset %>%
@@ -1520,8 +1548,144 @@ ggplot(data_long, aes(x = Value)) +
   scale_x_continuous(limits = c(-1000, 1000)) +
   theme_minimal()
 
+#########################################################
+#         6.5 Deep Neural Network                       #
+#########################################################
+
+# Z-normalisation function
+#z_normalise <- function(x) {
+#  (x - mean(x)) / sd(x)
+#}
+
+# Store the mean and standard deviation for reversing the z-normalisation : 
+#mean_cost_claims <- mean(train_subset$Cost_claims_year)
+#sd_cost_claims <- sd(train_subset$Cost_claims_year)
+
+
+# We create 2 data frames for the deep neural network algorithm
+# to convert dates to numeric and normalise values :
+train_subset_dnn <- train_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  #  mutate(across(where(is.numeric), z_normalize)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+valid_subset_dnn <- valid_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  #  mutate(across(where(is.numeric), z_normalize)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+#str(train_subset)
+#str(train_subset_dnn)
+
+# Set the seed so we get the same results each time:
+set.seed(123)
+
+# Build the neural network model
+model <- neuralnet(
+  Cost_claims_year ~ Date_last_renewal,
+  data = train_subset_dnn,
+  hidden = c(8, 7, 6, 5, 4, 3, 2, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
+
+# Plot the model :
+plot(model, rep = "best")
+
+# Make predictions on the validation set :
+y_hat <- predict(model, valid_subset_dnn)
+
+# Inverse normalisation for the predictions
+y_hat <- y_hat * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "Deep Neural Network")
+results
+
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(dnn = y_hat)
+
+
+RMSE(valid_subset$Cost_claims_year, y_hat)
+
+#total_costs <- sum(valid_subset$Cost_claims_year)
+#total_costs
+#total_predictions <- sum(pred)
+#total_predictions
+#get_error(total_costs, total_predictions)
+#get_accuracy(valid_subset$Cost_claims_year, pred)
+
 # Exit the script
 stop("Stopping the script.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #########################################################
 #         6.4 Biases                                    #
@@ -1825,6 +1989,158 @@ confusion_matrix <- table(comparison$Actual, comparison$Predicted)
 print(confusion_matrix)
 
 ##############################################
+##############################################
+
+
+# Z-normalization function
+z_normalize <- function(x) {
+  (x - mean(x)) / sd(x)
+}
+# Assume you have stored these values during z-normalization
+mean_cost_claims <- mean(train_subset$Cost_claims_year)
+sd_cost_claims <- sd(train_subset$Cost_claims_year)
+
+str(train_subset)
+str(train_subset_dnn)
+train_subset_dnn <- train_subset %>%
+  mutate(status = if_else(status == "New", 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0),
+         Date_start_contract = as.numeric(Date_start_contract),
+         Date_last_renewal = as.numeric(Date_last_renewal)) %>%
+#  mutate(across(where(is.numeric), z_normalize)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) ))) %>%
+  select(ID, Claim, Cost_claims_year, Date_last_renewal, Cylinder_capacity,
+         Weight, N_doors, Type_risk, R_Claims_history,
+         Area, Max_products, Second_driver, Age, Value_vehicle,
+         Payment, Year_matriculation, status)
+valid_subset_dnn <- valid_subset %>%
+  mutate(status = if_else(status == "New", 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0),
+         Date_start_contract = as.numeric(Date_start_contract),
+         Date_last_renewal = as.numeric(Date_last_renewal)) %>%
+#  mutate(across(where(is.numeric), z_normalize)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) ))) %>%
+  select(ID, Claim, Cost_claims_year, Date_last_renewal, Cylinder_capacity,
+         Weight, N_doors, Type_risk, R_Claims_history,
+         Area, Max_products, Second_driver, Age, Value_vehicle,
+         Payment, Year_matriculation, status)
+str(train_subset)
+str(train_subset_dnn)
+
+set.seed(123)
+# Build the neural network model
+model <- neuralnet(
+  Cost_claims_year ~ Date_last_renewal,
+  data = train_subset_dnn,
+  hidden = c(8, 7, 6, 5, 4, 3, 2, 1),
+  linear.output = TRUE
+#  threshold = 0.01,
+#  rep = 5
+)
+
+# Plot the model
+plot(model, rep = "best")
+
+# Make predictions on the scaled validation set
+pred <- predict(model, valid_subset_dnn)
+
+# Inverse normalization for the predictions
+pred <- pred * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+#pred
+
+RMSE(valid_subset_dnn$Cost_claims_year, pred)
+
+total_costs <- sum(valid_subset$Cost_claims_year)
+#total_costs
+total_predictions <- sum(pred)
+#total_predictions
+get_error(total_costs, total_predictions)
+get_accuracy(valid_subset$Cost_claims_year, pred)
+
+##############################################
+# Will a policy holder submit a claim        #
+##############################################
+
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
+
+set.seed(123)
+# Build the neural network model
+model <- neuralnet(
+  Claim ~ .,
+  data = train_subset_dnn,
+  hidden = c(6, 4, 2, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
+
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+str(train_subset_dnn)
+# Save the model
+save(model, file = "neural_network_model.RData")
+
+# Load the model
+load("neural_network_model.RData")
+
+# Plot the model
+plot(model, rep = "best")
+
+# Make predictions on the scaled validation set
+pred <- predict(model, valid_subset_dnn)
+# Convert predictions to binary outcomes
+pred <- ifelse(pred > 0.5, 1, 0)
+# Inverse normalization for the predictions
+#pred <- pred * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+
+# Accuracy is 0.9997186 (99.97%) :
+accuracy <- mean(pred == valid_subset_dnn$Claim)
+accuracy
+
+##############################################
+##############################################
+
+train_subset_dnn_2 <- train_subset_dnn %>%
+  select(Claim,
+         Date_last_renewal,
+         R_Claims_history,
+         Cylinder_capacity,
+         Value_vehicle,
+         Type_risk,
+         Age,
+         Payment,
+         Status)
+
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
+
+set.seed(123)
+# Build the neural network model
+model_2 <- neuralnet(
+  Claim ~ .,
+  data = train_subset_dnn_2,
+  hidden = c(4, 2, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
+
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
 
 
 
@@ -1833,6 +2149,61 @@ print(confusion_matrix)
 
 
 
+
+
+
+
+
+
+
+
+
+
+# Load the package
+library(nnet)
+
+# Create a neural network model without requiring Python
+model <- nnet(
+  Cost_claims_year ~ Date_last_renewal,
+  data = train_subset_dnn,
+  size = 10,  # Number of neurons
+  linout = TRUE,  # Linear output for regression
+  trace = FALSE   # Disable training output
+)
+
+# Make predictions
+pred <- predict(model, valid_subset_dnn)
+# Inverse Z-normalization for predictions
+pred <- pred * sd_cost_claims + mean_cost_claims
+
+# Calculate RMSE
+RMSE(valid_subset$Cost_claims_year, pred)
+
+rmse <- sqrt(mean((valid_subset$Cost_claims_year - pred)^2))
+print(paste("RMSE:", rmse))
+
+max(pred)
+
+
+library(caret)
+# Train the neural network model
+model <- train(
+  Cost_claims_year ~ Date_last_renewal,
+  data = train_subset_dnn,
+  method = "nnet",
+  linout = TRUE,
+  trace = FALSE,
+  size = 6  # Number of neurons in one layer
+)
+
+# Make predictions
+pred <- predict(model, valid_subset_dnn_scaled)
+
+# Inverse Z-normalization for predictions
+pred <- pred * sd_cost_claims + mean_cost_claims
+
+# Calculate RMSE
+RMSE(valid_subset$Cost_claims_year, pred)
 
 
 

@@ -798,21 +798,23 @@ To refine the model for predicting insurance costs, the following variables will
 
 ## 6.1 Methodology
 
-The objective of this methodology is to develop an accurate predictive model for car insurance costs using AI techniques. With a focus on continuous improvement, I will employ a structured approach to model training and validation, ensuring that the predictions are robust and reliable. Key performance metrics will be utilized to evaluate the model's accuracy at both individual customer levels and overall insurance company levels.
+The objective of this methodology is to develop an accurate predictive model for car insurance costs using AI techniques. With a focus on continuous improvement, we will employ a structured approach to model training and validation, ensuring that the predictions are robust and reliable. Key performance metrics will be utilized to evaluate the model's accuracy at both individual customer levels and overall insurance company levels.
 
 **Model Development and Data Sub-Splitting**
 
 After preparing the initial dataset and conducting preliminary analysis, I will sub-split the existing **train_set** into two distinct subsets: **sub_train_set** and **sub_valid_set**. This sub-splitting is critical as it allows for a more refined approach to model training and validation.
 
-- **Sub-Train Set**: This smaller subset will be used for the actual training of the predictive model. Feature engineering will focus on elements such as customer demographics, driving history, and vehicle specifications that significantly influence premiums.
+- **Sub-Train Set**: This smaller subset will be used for the actual training of the predictive model. Feature engineering will focus on elements such as customer demographics, driving history, and vehicle specifications that significantly influence costs.
 
-- **Sub-Valid Set**: This subset will be employed for validation purposes, allowing me to assess how well the model generalizes to unseen data. The **sub_valid_set** will serve as a crucial checkpoint to evaluate the model's performance and mitigate the risk of overfitting to the training data.
+- **Sub-Valid Set**: This subset will be employed for validation purposes, allowing to assess how well the model generalizes to unseen data. This subset will serve as a crucial checkpoint to evaluate the model's performance and mitigate the risk of over fitting to the training data.
 
 During the training phase, hyperparameters will be optimized to enhance predictive accuracy.
 
-**Validation and Incremental Learning**
+**Metrics**
 
-Upon completing the training phase, the model's performance will be evaluated using the **sub_valid_set**. The Root Mean Square Error (RMSE) metric will be the primary measure of model accuracy. This metric assists in determining how closely the predicted insurance costs align with the actual costs at the individual customer level.
+Upon completing the training phase, the model's performance will be evaluated using the **sub_valid_set**.
+
+The Root Mean Square Error (RMSE) metric will be the first measure of model accuracy. This metric assists in determining how closely the predicted insurance costs align with the actual costs at the individual customer level.
 
 \[
 RMSE = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (\hat{y}_i - y_i)^2}
@@ -823,7 +825,27 @@ where :
 \( \hat{y}_{i} \) : The predicted values (model outputs).  
 \( N \): The number of observations.  
 
-The goal here is to achieve a low RMSE, indicating that the predictions are reliable for the end-users. If the validation results are satisfactory, I will consider the possibility of incrementally retraining the model using the validation data. Incremental training allows for gradual improvements, enabling the model to adapt as new patterns emerge, reflecting any shifts in customer behavior or market conditions.
+The goal here is to achieve a low RMSE, indicating that the predictions are reliable for the end-users.
+
+Now a model with predictions consistently above the actual values will result in the same RMSE as with a model where the predictions are disparately above or below the actual values. But in the latter case, the total predicted cost will be much closer to the total actual cost. So we will also consider the relative error to the total cost. This will allow to determine if the model is able to predict a good result from the insurer perspective. Again we want to achieve the lowest possible result, ideally as close as possible from zero. 
+
+The relative error (\( \varepsilon \)) is defined as:
+
+\[
+\varepsilon = \frac{| \text{Total Costs} - \text{Total Predictions} |}{| \text{Total Costs} |}
+\]
+
+The last metric we will use will be the accuracy : we want to know how many predictions are within a range of 10 units (probably euros) from the actual value. This time, the higher the result the better it is. We will try to achieve a minimum accuracy of 90%.
+
+The accuracy (\( A \)) is defined as the proportion of predictions within a threshold:
+
+\[
+A = \text{mean}\left(| \text{costs} - \text{predictions} | < 10\right)
+\]
+
+**Validation and Incremental Learning**
+
+If the validation results are satisfactory, I will consider the possibility of incrementally retraining the model using the validation data. Incremental training allows for gradual improvements, enabling the model to adapt as new patterns emerge, reflecting any shifts in customer behavior or market conditions.
 
 **Testing**
 
@@ -899,7 +921,9 @@ So if we estimate all costs to be the mean of the costs of the training subset, 
 \hat{y}_i = \mu = \textbf{`r round(avg_cost, 2)`}
 \]
 
-The resulting RMSE and total costs will then be : 
+Note that this value will minimise the RMSE in the training set as it is the average value for all costs of this set. The RMSE in the training set will be `r round(RMSE(train_subset$Cost_claims_year, avg_cost), 2)` which is quite high.
+
+The resulting RMSE, relative error and accuracy will then be : 
 
 ```{r, echo=FALSE}
 data_summary <- results %>%
@@ -912,7 +936,12 @@ kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args
 
 The RMSE indicates a relatively high level of error in the predictions, indicating that the estimated costs are significantly inflated compared to the actual values, particularly since many policies have no associated costs. Specifically, the estimated cost exceeds the actual value by nearly 1.5 million, which constitutes an increase of approximately 280%.
 
+Additionaly, the accuracy with a value of 0.1% is very low, and show that only 0.1% of the predicted values are within a range of 10 units from the actual value.
 This initial model serves as a baseline for our analysis and will be used to benchmark the performance of our other prediction algorithms.
+
+**Zero**
+
+
 
 ## 6.3 Linear Model
 
