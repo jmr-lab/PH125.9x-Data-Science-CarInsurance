@@ -1978,7 +1978,40 @@ mean(y_hat == 0)
 # Random Forest : 0 or non-zero (end)
 ########################################
 
+########################################
+# Deep neural network : 0 or non-zero (end)
+########################################
 
+# Assuming your train_subset has a target variable 'cost'
+# Filter the training data for only the claims
+train_claims <- train_subset[train_subset$pred_claim == 1, ]
+
+# Ensure you have a target variable 'cost' for training
+# Define the formula for the neural network
+formula <- cost ~ predictors  # replace 'predictors' with your predictor variables
+
+# Train the neural network
+nn_model <- neuralnet(formula, data = train_claims, hidden = c(5), linear.output = TRUE)
+
+# Prepare the validation set
+# If there are rows with pred_claim = 0, set their costs to zero
+valid_subset$predicted_cost <- 0  # initialize the predicted costs with zeros
+
+# Now filter the validation set for predictions
+valid_claims <- valid_subset[valid_subset$pred_claim == 1, ]
+
+# Make predictions on the validation set where pred_claim = 1
+predictions <- predict(nn_model, newdata = valid_claims)
+
+# Assign predictions to the corresponding rows in valid_subset
+valid_subset$predicted_cost[valid_subset$pred_claim == 1] <- predictions
+
+# View the results
+head(valid_subset)
+
+########################################
+# Deep neural network : 0 or non-zero (end)
+########################################
 
 
 
