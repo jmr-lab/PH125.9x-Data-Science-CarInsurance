@@ -17,6 +17,8 @@ library(scales)
 #library(glue)
 library(purrr)
 library(caret)
+library(neuralnet)
+library(randomForest)
 
 #########################################################
 #         3. Dataset                                    #
@@ -1364,6 +1366,7 @@ update_results <- function(validation_set, predictions, title) {
                                  Accuracy = round(accuracy, 3))
 }
 
+str(train_subset)
 
 #########################################################
 #         6.2 Averages                                  #
@@ -1636,9 +1639,79 @@ RMSE(valid_subset$Cost_claims_year, y_hat)
 # Exit the script
 stop("Stopping the script.")
 
+
+library(randomForest)
+
+# Convert categorical variables into factors
+str(train_subset)
+train_subset <- train_subset %>% select(ID, Date_last_renewal, Distribution_channel, Policies_in_force,
+                        Lapse, Payment, Cost_claims_year, Type_risk, Power, Cylinder_capacity,
+                        Value_vehicle, Age, R_Claims_history, Status)
+train_subset$Distribution_channel <- as.factor(train_subset$Distribution_channel)
+train_subset$Policies_in_force <- as.factor(train_subset$Policies_in_force)
+train_subset$Lapse <- as.factor(train_subset$Lapse)
+train_subset$Payment <- as.factor(train_subset$Payment)
+train_subset$Type_risk <- as.factor(train_subset$Type_risk)
+#train_subset$Power <- as.factor(train_subset$Power)
+#train_subset$Cylinder_capacity <- as.factor(train_subset$Cylinder_capacity)
+#train_subset$Value_vehicle <- as.factor(train_subset$Value_vehicle)
+#train_subset$Age <- as.factor(train_subset$Age)
+train_subset$Status <- as.factor(train_subset$Status)
+train_subset$Date_last_renewal <- as.numeric(as.Date(train_subset$Date_last_renewal))
+
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
+
+# Assuming train_subset is already prepared
+n_predictors <- ncol(train_subset) - 1
+
+mtry_value <- min(n_predictors, 2)  # Example with 2 as default, set to max available
+set.seed(123)  # For reproducibility
+rf_model <- randomForest(
+  Cost_claims_year ~ .,
+  data = train_subset,
+  ntree = 500,         
+  mtry = mtry_value,        
+  importance = TRUE    
+)
+
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+# Prediction on training data
+y_hat <- predict(rf_model, train_subset)
+
+# Calculate the Mean Squared Error
+mse <- mean((train_subset$Cost_claims_year - y_hat)^2)
+print(paste("MSE:", mse))
+
+results <- update_results(valid_subset, y_hat, "Random Forest")
+results
+
+# Plot variable importance
+varImpPlot(rf_model)
+
 ##############################################
 # Will a policy holder submit a claim        #
 ##############################################
+
+train_subset_dnn <- train_subset_dnn %>% select(-Cost_claims_year)
+train_subset_dnn <- train_subset_dnn %>%
+  select(Date_last_renewal, Distribution_channel, Payment, Type_risk,
+         Power, Value_vehicle, Age, R_Claims_history, Status, Claim)
+
+valid_subset_dnn <- valid_subset_dnn %>% select(-Cost_claims_year)
+valid_subset_dnn <- valid_subset_dnn %>%
+  select(Date_last_renewal, Distribution_channel, Payment, Type_risk,
+         Power, Value_vehicle, Age, R_Claims_history, Status, Claim)
+
+str(train_subset_dnn)
 
 # Start timing as the code below can be quite long to run
 start_time <- Sys.time()
@@ -1649,8 +1722,8 @@ set.seed(123)
 model <- neuralnet(
   Claim ~ .,
   data = train_subset_dnn,
-  hidden = c(6, 4, 2, 1),
-  linear.output = TRUE
+  hidden = c(6),
+  linear.output = FALSE
   #  threshold = 0.01,
   #  rep = 5
 )
@@ -1663,12 +1736,7 @@ cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
 duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
 cat("Time taken:", duration, "seconds\n")
 
-str(train_subset_dnn)
-# Save the model
-save(model, file = "neural_network_model.RData")
-
-# Load the model
-load("neural_network_model.RData")
+#str(train_subset_dnn)
 
 # Plot the model
 plot(model, rep = "best")
@@ -1684,6 +1752,231 @@ pred <- ifelse(pred > 0.5, 1, 0)
 accuracy <- mean(pred == valid_subset_dnn$Claim)
 accuracy
 
+# Save the model
+save(model, file = "neural_network_model.RData")
+
+# Load the model
+load("neural_network_model.RData")
+
+###############
+# non zero
+###############
+
+str(train_subset)
+
+train_subset$non_zero <- ifelse(train_subset$Cost_claims_year > 0, 1, 0)
+
+# Data for modeling non-zero costs
+non_zero_data <- train_subset[train_subset$non_zero == 1, ]
+
+# Create a function to scale numeric features
+scale_features <- function(data) {
+  return(scale(data))
+}
+
+# Scale numeric features (excluding the target variable)
+non_zero_data_scaled <- non_zero_data
+non_zero_data_scaled[, c("Date_last_renewal", "R_Claims_history", "Value_vehicle")] <- scale_features(non_zero_data[, c("Date_last_renewal", "R_Claims_history", "Value_vehicle")])
+
+# Make sure to keep the non-zero cost
+non_zero_data_scaled$Cost_claims_year <- non_zero_data$Cost_claims_year
+
+nn_model <- neuralnet(Cost_claims_year ~ Date_last_renewal + R_Claims_history + Value_vehicle, 
+                      data = non_zero_data_scaled, 
+                      hidden = c(5, 3),  # Example of hidden layers; you can tune this
+                      linear.output = TRUE)  # Use TRUE for regression output
+
+predictions <- predict(nn_model, newdata = non_zero_data_scaled)
+
+# Calculate RMSE for non-zero costs
+rmse <- sqrt(mean((predictions - non_zero_data_scaled$Cost_claims_year)^2))
+print(paste("Neural Network RMSE for non-zero costs:", rmse))
+
+predictions
+non_zero_data_scaled$Cost_claims_year
+
+
+# Fit the neural network
+nn_model <- neuralnet(
+  Cost_claims_year ~ Date_last_renewal + R_Claims_history + Value_vehicle, 
+  data = non_zero_data_scaled, 
+  hidden = c(5, 3),  # Number of neurons in hidden layers
+  linear.output = TRUE, 
+  rep = 1,           # You can adjust this to train multiple times
+  stepmax = 1e6      # Controls the maximum number of steps for the training
+)
+
+
+# Create a binary indicator for zero costs
+train_subset$zero_cost <- ifelse(train_subset$Cost_claims_year == 0, 1, 0)
+
+# Prepare data for modeling
+model_data <- train_subset[!is.na(train_subset$zero_cost), ]
+
+# Scale numeric variables
+model_data_scaled <- model_data
+model_data_scaled[, c("Date_last_renewal", "R_Claims_history")] <- scale(model_data[, c("Date_last_renewal", "R_Claims_history")])
+
+nn_model <- neuralnet(zero_cost ~ Date_last_renewal + R_Claims_history, 
+                      data = model_data_scaled, 
+                      hidden = c(5, 3),  # You can adjust the hidden layers
+                      linear.output = FALSE)  # Use FALSE for binary classification
+
+predictions <- predict(nn_model, newdata = model_data_scaled)
+
+# Convert probabilities to binary predictions
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)  # Using 0.5 as the decision threshold
+
+# Calculate accuracy
+accuracy <- mean(predicted_classes == model_data_scaled$zero_cost)
+print(paste("Model Accuracy:", accuracy))
+
+# Confusion Matrix
+table(Predicted = predicted_classes, Actual = model_data_scaled$zero_cost)
+
+# Plot predictions
+results <- data.frame(Actual = model_data_scaled$zero_cost, Predicted = predicted_classes)
+ggplot(results, aes(x = Actual, fill = as.factor(Predicted))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Actual vs Predicted Zero Costs", y = "Count") +
+  scale_fill_discrete(name = "Predicted")
+
+
+
+########################################
+# Random Forest : 0 or non-zero
+########################################
+
+library(randomForest)
+
+# Create a binary indicator for zero costs
+train_subset$zero_cost <- ifelse(train_subset$Cost_claims_year == 0, 1, 0)
+str(train_subset)
+# Prepare data for modeling
+model_data <- train_subset[!is.na(train_subset$zero_cost), ]
+str(model_data)
+# Convert categorical variables to factors if necessary
+#model_data$variable1 <- as.factor(model_data$variable1)  # Example for categorical transformation
+# Repeat for other categorical variables if needed
+
+# Optionally, consider removing the original cost variable if it's not needed
+model_data$Cost_claims_year <- NULL
+
+# Remove cost and zero_cost
+train_subset <- train_subset %>% select(-ID, -Cost_claims_year, -non_zero)
+
+set.seed(123)  # For reproducibility
+train_indices <- sample(1:nrow(model_data), 0.7 * nrow(model_data))  # 70% for training
+train_data <- model_data[train_indices, ]
+test_data <- model_data[-train_indices, ]
+
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
+
+rf_model <- randomForest(zero_cost ~ ., 
+                         data = train_data, 
+                         ntree = 100,  # Number of trees
+                         mtry = 2,     # Number of variables considered at each split
+                         importance = TRUE)
+
+predictions <- predict(rf_model, newdata = test_data)
+
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+# Check the first few predictions
+head(predictions)
+
+threshold <- 0.5  # You can change this value based on your needs
+# Apply the threshold to convert probabilities to binary predictions
+predictions <- ifelse(predictions >= threshold, 1, 0)
+
+# Calculate accuracy
+accuracy <- mean(predictions == test_data$zero_cost)
+print(paste("Model Accuracy:", accuracy))
+
+accuracy_zero <- mean(0 == test_data$zero_cost)
+print(paste("Model Accuracy Zero:", accuracy_zero))
+
+# Confusion Matrix
+confusion_matrix <- table(Predicted = predictions, Actual = test_data$zero_cost)
+print(confusion_matrix)
+
+########################################
+# Random Forest : 0 or non-zero
+########################################
+
+# Convert specified columns to factors
+#factor_columns <- c("Distribution_channel", "Policies_in_force", "Payment", "Type_risk", "Status")
+factor_columns <- c("Distribution_channel", "Payment", "Type_risk", "Status")
+train_subset[factor_columns] <- sapply(train_subset[factor_columns], as.factor, simplify = FALSE)  # Use simplify = FALSE to keep the structure
+# Convert Date_last_renewal to numeric
+train_subset$Date_last_renewal <- as.numeric(as.Date(train_subset$Date_last_renewal))
+train_subset$Date_start_contract <- as.numeric(as.Date(train_subset$Date_start_contract))
+
+train_subset_rf <- train_subset %>% select(-Cost_claims_year, -Policies_in_force)
+str(train_subset_rf)
+
+set.seed(123)  # For reproducibility
+# Start timing as the code below can be quite long to run
+start_time <- Sys.time()
+cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
+
+rf_model <- randomForest(Claim ~ ., 
+                         data = train_subset_rf, 
+                         ntree = 100,  # Number of trees
+                         mtry = 2,     # Number of variables considered at each split
+                         importance = TRUE)
+
+predictions <- predict(rf_model, newdata = train_subset_rf)
+
+# End timing
+end_time <- Sys.time()
+cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+threshold <- 0.5  # You can change this value based on your needs
+# Apply the threshold to convert probabilities to binary predictions
+predictions <- ifelse(predictions >= threshold, 1, 0)
+
+# Calculate accuracy : 0.941628590656324 (94.16%)
+accuracy <- mean(predictions == train_subset_rf$Claim)
+print(paste("Model Accuracy:", accuracy))
+
+# Validation
+# Convert specified columns to factors
+valid_subset[factor_columns] <- sapply(valid_subset[factor_columns], as.factor, simplify = FALSE)
+# Convert Date_last_renewal to numeric
+valid_subset$Date_last_renewal <- as.numeric(as.Date(valid_subset$Date_last_renewal))
+valid_subset$Date_start_contract <- as.numeric(as.Date(valid_subset$Date_start_contract))
+
+#valid_subset_rf <- valid_subset_rf %>% select(-Policies_in_force, -lm_1, -lm_3, -lm_14, -lm_pr, -dnn)
+valid_subset_rf <- valid_subset_rf %>% select(-Policies_in_force)
+str(valid_subset_rf)
+
+y_hat <- predict(rf_model, newdata = valid_subset_rf)
+y_hat <- ifelse(y_hat >= threshold, 1, 0)
+
+# Calculate accuracy : 0.912117801538173 (91.21%)
+valid_accuracy <- mean(y_hat == valid_subset_rf$Claim)
+print(paste("Model Accuracy:", valid_accuracy))
+
+mean(train_subset_rf$Claim == 0)
+mean(valid_subset_rf$Claim == 0)
+mean(y_hat == 0)
+
+########################################
+# Random Forest : 0 or non-zero (end)
+########################################
 
 
 
@@ -1697,6 +1990,81 @@ accuracy
 
 
 
+
+factor_columns <- c("Distribution_channel", "Policies_in_force", "Lapse", "Payment", "Type_risk", "Status")
+
+# Print levels in the training dataset
+train_levels <- lapply(train_subset[factor_columns], levels)
+print(train_levels)
+
+# Print levels in the validation dataset
+valid_levels <- lapply(valid_subset_rf[factor_columns], levels)
+print(valid_levels)
+
+
+# Check the levels of factor variables in the training and validation datasets
+train_factors <- sapply(train_subset_rf[factor_columns], levels)
+valid_factors <- sapply(valid_subset_rf[factor_columns], levels)
+
+# Compare levels for each factor variable
+for (col in factor_columns) {
+  print(paste("Column:", col))
+  print(setdiff(valid_factors[[col]], train_factors[[col]]))  # Levels in valid that aren't in train
+}
+
+# Create a unified factor for both training and validation sets
+for (col in factor_columns) {
+  if (col %in% names(train_subset_rf)) {
+    all_levels <- unique(c(levels(train_subset_rf[[col]]), levels(valid_subset_rf[[col]])))
+    train_subset_rf[[col]] <- factor(train_subset_rf[[col]], levels = all_levels)
+    valid_subset_rf[[col]] <- factor(valid_subset_rf[[col]], levels = all_levels)
+  }
+}
+
+for (col in factor_columns) {
+  valid_subset_rf[[col]][!(valid_subset_rf[[col]] %in% levels(train_subset_rf[[col]]))] <- NA
+}
+
+
+
+
+
+train_subset$Cost_claims_year_log <- log(train_subset$Cost_claims_year + 1)  # +1 avoids log(0)
+summary(train_subset)
+# Fit the model using the log-transformed target
+model_log <- lm(Cost_claims_year_log ~ Date_last_renewal_numeric + R_Claims_history + Age, data = train_subset)
+summary(model_log)
+
+# Predictions
+predictions_log <- exp(predict(model_log)) - 1
+predictions_log
+
+rmse_log <- sqrt(mean((predictions_log - train_subset$Cost_claims_year)^2))
+print(paste("Log-transformed RMSE:", rmse_log))
+
+
+min(train_subset$Cost_claims_year)
+max(train_subset$Cost_claims_year)
+sum(train_subset$Cost_claims_year == 0) / nrow(train_subset)
+
+Q1 <- quantile(train_subset$Cost_claims_year, 0.25)
+Q3 <- quantile(train_subset$Cost_claims_year, 0.75)
+IQR <- Q3 - Q1
+Q1
+Q3
+ggplot(train_subset, aes(x = Cost_claims_year)) + geom_histogram(binwidth = 10)
+train_subset_clean$Cost_claims_year_log <- log(train_subset_clean$Cost_claims_year + 1)
+ggplot(train_subset_clean, aes(x = Cost_claims_year_log)) + geom_histogram(binwidth = 10)
+
+outlier_thresholds <- c(Q1 - 1.5 * IQR, Q3 + 1.5 * IQR)
+train_subset$Date_last_renewal_numeric <- as.numeric(as.Date(train_subset$Date_last_renewal))
+train_subset_clean <- train_subset %>%
+  filter(Cost_claims_year > outlier_thresholds[1] & Cost_claims_year < outlier_thresholds[2])
+outlier_thresholds[1]
+outlier_thresholds[2]
+head(train_subset_clean)
+model <- lm(Cost_claims_year ~ poly(Date_last_renewal_numeric, 4), data = train_subset_clean)
+summary(model)
 
 
 
