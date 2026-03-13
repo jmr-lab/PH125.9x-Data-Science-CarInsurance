@@ -1310,6 +1310,18 @@ get_accuracy <- function(costs, predictions) {
 # Define the new cutoff date
 cutoff_subset_date <- as.Date("2018-06-01")
 
+train_set <- train_set %>%
+  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
+         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
+  select(where(~ !any(is.na(.)))) %>%
+  select(-Premium, -N_claims_year, -Year)
+# Convert specified columns to factors
+factor_columns <- c("Distribution_channel", "Policies_in_force", "Payment", "Type_risk", "Area", "Second_driver", "N_doors", "Status", "Claim")
+train_set[factor_columns] <- sapply(train_set[factor_columns], as.factor, simplify = FALSE)
+# Convert Date_last_renewal to numeric
+train_set$Date_last_renewal <- as.numeric(as.Date(train_set$Date_last_renewal))
+train_set$Date_start_contract <- as.numeric(as.Date(train_set$Date_start_contract))
+
 # Create train subset from train_set
 # Add Status column (New or Ongoing),
 # Claim to indicate 1 if there is a claim or more, 0 otherwise, 
@@ -1317,20 +1329,13 @@ cutoff_subset_date <- as.Date("2018-06-01")
 # Premium and N_claims_year as they contain values that are related to Cost_claims_year
 # and all columns containing NA values
 train_subset <- train_set %>%
-  filter(Date_last_renewal < cutoff_subset_date) %>%
-  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
-         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
-  select(where(~ !any(is.na(.)))) %>%
-  select(-Premium, -N_claims_year, -Year)
+  filter(Date_last_renewal < cutoff_subset_date)
 nrow(train_subset)
+str(train_subset)
 
 # Create a validation subset from train_set the same way :
 valid_subset <- train_set %>%
-  filter(Date_last_renewal >= cutoff_subset_date) %>%
-  mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
-         Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
-  select(where(~ !any(is.na(.)))) %>%
-  select(-Premium, -N_claims_year, -Year)
+  filter(Date_last_renewal >= cutoff_subset_date)
 nrow(valid_subset)
 
 # And add/remove columns on the test set the same way :
@@ -1491,7 +1496,12 @@ valid_subset <- valid_subset %>%
 # Linear Model with 1 parameter and polynomial regression :
 # RMSE = 474.2981
 # Error = 0.562
-train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", data = train_subset)
+formula <- Cost_claims_year ~
+  poly(Date_last_renewal, 4) + 
+  poly(R_Claims_history, 9) +
+  poly(Driving_age, 8)
+
+train <- train(formula, method = "lm", data = train_subset)
 
 # Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
@@ -1504,6 +1514,10 @@ results
 valid_subset <- valid_subset %>%
   mutate(lm_pr = y_hat)
 
+# Replace values in lm_pr below the threshold with 0
+#mean(valid_subset$lm_pr < 0)
+#modified_lm_pr <- ifelse(valid_subset$lm_pr < threshold, 0, valid_subset$lm_pr)
+
 #########################################################
 #         6.4 Plots                                     #
 #########################################################
@@ -1511,7 +1525,8 @@ valid_subset <- valid_subset %>%
 # Calculate weekly summary data :
 weekly_summary <- valid_subset %>%
   select(Date_last_renewal, Cost_claims_year, lm_1, lm_3, lm_14, lm_pr) %>%
-  mutate(Week = floor_date(Date_last_renewal, unit = "week")) %>%
+  mutate(Date_last_renewal = as.Date(Date_last_renewal, origin = "1970-01-01"), # Adjust origin if necessary
+         Week = floor_date(Date_last_renewal, unit = "week")) %>%
   group_by(Week) %>%
   summarize(
     Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
@@ -1584,26 +1599,43 @@ ggplot(data_long, aes(x = Value)) +
 # We create 2 data frames for the deep neural network algorithm
 # to convert dates to numeric and normalise values :
 train_subset_dnn <- train_subset %>%
+  filter(Cost_claims_year <= 882) %>%
   mutate(Date_last_renewal = as.numeric(Date_last_renewal),
          Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate_if(is.factor, ~ as.numeric(.)) %>%
   #  mutate(across(where(is.numeric), z_normalize)) %>%
   mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
 valid_subset_dnn <- valid_subset %>%
   mutate(Date_last_renewal = as.numeric(Date_last_renewal),
          Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate_if(is.factor, ~ as.numeric(.)) %>%
   #  mutate(across(where(is.numeric), z_normalize)) %>%
   mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
 #str(train_subset)
-#str(train_subset_dnn)
+str(train_subset_dnn)
+str(valid_subset_dnn)
+
+# Get the column names from train_subset
+all_predictors <- colnames(train_subset)
+
+# Exclude the specific columns
+desired_predictors <- all_predictors[!all_predictors %in% c("Cost_claims_year",
+                                                            "ID",
+                                                            "Lapse",
+                                                            "Claim")]
+
+# Create the formula
+formula <- as.formula(paste("Cost_claims_year ~", paste(desired_predictors, collapse = " + ")))
+formula
 
 # Set the seed so we get the same results each time:
 set.seed(123)
 
 # Build the neural network model
 model <- neuralnet(
-  Cost_claims_year ~ Date_last_renewal,
+  formula,
   data = train_subset_dnn,
-  hidden = c(8, 7, 6, 5, 4, 3, 2, 1),
+  hidden = c(6, 4, 2, 1),
   linear.output = TRUE
   #  threshold = 0.01,
   #  rep = 5
@@ -1626,6 +1658,9 @@ results
 valid_subset <- valid_subset %>%
   mutate(dnn = y_hat)
 
+# Exit the script
+stop("Stopping the script.")
+
 
 RMSE(valid_subset$Cost_claims_year, y_hat)
 
@@ -1636,8 +1671,209 @@ RMSE(valid_subset$Cost_claims_year, y_hat)
 #get_error(total_costs, total_predictions)
 #get_accuracy(valid_subset$Cost_claims_year, pred)
 
-# Exit the script
-stop("Stopping the script.")
+RMSE(valid_subset$Cost_claims_year, valid_subset$lm_pr)
+RMSE(valid_subset$Cost_claims_year, valid_subset$dnn)
+get_error(sum(valid_subset$Cost_claims_year), sum(valid_subset$lm_pr))
+get_error(sum(valid_subset$Cost_claims_year), sum(valid_subset$dnn))
+get_accuracy(valid_subset$Cost_claims_year, valid_subset$lm_pr)
+get_accuracy(valid_subset$Cost_claims_year, valid_subset$dnn)
+
+str(valid_subset)
+
+min(y_hat)
+min(valid_subset$lm_pr)
+min(valid_subset$Cost_claims_year)
+
+max(y_hat)
+max(valid_subset$lm_pr)
+max(valid_subset$Cost_claims_year)
+
+valid_subset$Cost_claims_year[which.max(valid_subset$lm_pr)]
+valid_subset$lm_pr[which.max(valid_subset$Cost_claims_year)]
+
+mean(y_hat)
+mean(valid_subset$lm_pr)
+mean(valid_subset$Cost_claims_year)
+
+# Calculate the 25th and 75th percentiles
+percentiles <- quantile(y_hat, probs = c(0.25, 0.75))
+
+# Display the results
+percentiles[1]
+
+df <- train_subset %>% filter(Cost_claims_year > 0)
+percentiles_train <- quantile(df$Cost_claims_year, probs = c(0.25, 0.75))
+percentiles_train
+
+RMSE(valid_subset$Cost_claims_year, valid_subset$lm_pr)
+RMSE(valid_subset$Cost_claims_year, valid_subset$dnn)
+
+# Below percentiles[1] :
+df <- valid_subset %>% filter(valid_subset$lm_pr < percentiles[1])
+
+RMSE(df$Cost_claims_year, df$lm_pr)
+RMSE(df$Cost_claims_year, df$dnn)
+get_error(sum(df$Cost_claims_year), sum(df$lm_pr))
+get_error(sum(df$Cost_claims_year), sum(df$dnn))
+get_accuracy(df$Cost_claims_year, df$lm_pr)
+get_accuracy(df$Cost_claims_year, df$dnn)
+
+# Between percentiles[1] and percentiles[2] :
+df <- valid_subset %>% filter(valid_subset$lm_pr >= percentiles[1] & valid_subset$lm_pr < percentiles[2])
+
+RMSE(df$Cost_claims_year, df$lm_pr)
+RMSE(df$Cost_claims_year, df$dnn)
+get_error(sum(df$Cost_claims_year), sum(df$lm_pr))
+get_error(sum(df$Cost_claims_year), sum(df$dnn))
+get_accuracy(df$Cost_claims_year, df$lm_pr)
+get_accuracy(df$Cost_claims_year, df$dnn)
+
+# Above percentiles[2] :
+df <- valid_subset %>% filter(valid_subset$lm_pr >= percentiles[2])
+
+RMSE(df$Cost_claims_year, df$lm_pr)
+RMSE(df$Cost_claims_year, df$dnn)
+get_error(sum(df$Cost_claims_year), sum(df$lm_pr))
+get_error(sum(df$Cost_claims_year), sum(df$dnn))
+get_accuracy(df$Cost_claims_year, df$lm_pr)
+get_accuracy(df$Cost_claims_year, df$dnn)
+
+#
+
+# Below 10 :
+df <- valid_subset %>% filter(valid_subset$lm_pr < 10)
+
+RMSE(df$Cost_claims_year, df$lm_pr)
+RMSE(df$Cost_claims_year, df$dnn)
+get_error(sum(df$Cost_claims_year), sum(df$lm_pr))
+get_error(sum(df$Cost_claims_year), sum(df$dnn))
+get_accuracy(df$Cost_claims_year, df$lm_pr)
+get_accuracy(df$Cost_claims_year, df$dnn)
+
+#
+
+# Plot the difference (error) between the prediction and the real cost :
+# Reshape data for ggplot using pivot_longer
+data_long <- valid_subset %>%
+  mutate(
+    diff_1 = Cost_claims_year - lm_1,
+    diff_3 = Cost_claims_year - lm_3,
+    diff_14 = Cost_claims_year - lm_14,
+    diff_pr = Cost_claims_year - lm_pr,
+    diff_dnn = Cost_claims_year - dnn
+  ) %>%
+  select(diff_1, diff_3, diff_14, diff_pr, diff_dnn) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Variable",
+               values_to = "Value")
+
+# Remove all values above 1000 (absolute value)
+data_long <- data_long %>% filter(Value < 1000, Value > -1000)
+
+# Plot histograms
+ggplot(data_long, aes(x = Value)) +
+  geom_histogram(binwidth = 10, fill = "darkblue", alpha = 0.7, color = "black") +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(x = "Value", y = "Count") +
+  scale_x_continuous(limits = c(-1000, 1000)) +
+  theme_minimal()
+
+#
+
+
+# Linear Model with 1 parameter :
+# RMSE = 469.1506
+# Error = 0.651
+#install.packages("MASS")
+library(MASS)
+
+train <- rlm(Cost_claims_year ~ Date_last_renewal, data = train_subset)
+#train <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset)
+
+# Predict the values :
+#y_hat <- predict(train, valid_subset, type = "raw")
+#y_hat <- y_hat - 32
+# Make predictions
+y_hat <- predict(train, newdata = valid_subset, type = "response")
+print(sum(y_hat))
+min(y_hat)
+max(y_hat)
+str(train_subset)
+str(valid_subset)
+RMSE(valid_subset$Cost_claims_year, y_hat)
+get_error(sum(valid_subset$Cost_claims_year), sum(y_hat))
+get_accuracy(valid_subset$Cost_claims_year, y_hat)
+
+# Update the results table :
+#results <- update_results(valid_subset, y_hat, "GLM")
+#results
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 library(randomForest)
@@ -1912,30 +2148,40 @@ print(confusion_matrix)
 # Random Forest : 0 or non-zero
 ########################################
 
-# Convert specified columns to factors
-#factor_columns <- c("Distribution_channel", "Policies_in_force", "Payment", "Type_risk", "Status")
-factor_columns <- c("Distribution_channel", "Payment", "Type_risk", "Status")
-train_subset[factor_columns] <- sapply(train_subset[factor_columns], as.factor, simplify = FALSE)  # Use simplify = FALSE to keep the structure
-# Convert Date_last_renewal to numeric
-train_subset$Date_last_renewal <- as.numeric(as.Date(train_subset$Date_last_renewal))
-train_subset$Date_start_contract <- as.numeric(as.Date(train_subset$Date_start_contract))
-
 train_subset_rf <- train_subset %>% select(-Cost_claims_year, -Policies_in_force)
 str(train_subset_rf)
+
+# Get the column names from train_subset
+all_predictors <- colnames(train_subset)
+
+# Exclude the specific columns
+desired_predictors <- all_predictors[!all_predictors %in% c("Claim", "Cost_claims_year", "Policies_in_force")]
+
+# Create the formula
+formula <- as.formula(paste("Claim ~", paste(desired_predictors, collapse = " + ")))
+
+# Display the formula
+print(formula)
 
 set.seed(123)  # For reproducibility
 # Start timing as the code below can be quite long to run
 start_time <- Sys.time()
 cat("Start Time : ", format(start_time, "%H:%M:%S.%OS"))
 
-rf_model <- randomForest(Claim ~ ., 
-                         data = train_subset_rf, 
+#rf_model <- randomForest(Claim ~ ., 
+#                         data = train_subset_rf, 
+#                         ntree = 100,  # Number of trees
+#                         mtry = 2,     # Number of variables considered at each split
+#                         importance = TRUE)
+
+rf_model <- randomForest(formula, 
+                         data = train_subset, 
                          ntree = 100,  # Number of trees
                          mtry = 2,     # Number of variables considered at each split
                          importance = TRUE)
 
 predictions <- predict(rf_model, newdata = train_subset_rf)
-
+#predictions
 # End timing
 end_time <- Sys.time()
 cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
@@ -1944,35 +2190,41 @@ cat("End Time : ", format(end_time, "%H:%M:%S.%OS"))
 duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
 cat("Time taken:", duration, "seconds\n")
 
-threshold <- 0.5  # You can change this value based on your needs
+#threshold <- 0.5  # You can change this value based on your needs
 # Apply the threshold to convert probabilities to binary predictions
-predictions <- ifelse(predictions >= threshold, 1, 0)
+#predictions <- ifelse(predictions >= threshold, 1, 0)
 
 # Calculate accuracy : 0.941628590656324 (94.16%)
-accuracy <- mean(predictions == train_subset_rf$Claim)
+accuracy <- mean(predictions == train_subset$Claim)
 print(paste("Model Accuracy:", accuracy))
 
 # Validation
 # Convert specified columns to factors
-valid_subset[factor_columns] <- sapply(valid_subset[factor_columns], as.factor, simplify = FALSE)
+#valid_subset[factor_columns] <- sapply(valid_subset[factor_columns], as.factor, simplify = FALSE)
 # Convert Date_last_renewal to numeric
-valid_subset$Date_last_renewal <- as.numeric(as.Date(valid_subset$Date_last_renewal))
-valid_subset$Date_start_contract <- as.numeric(as.Date(valid_subset$Date_start_contract))
+#valid_subset$Date_last_renewal <- as.numeric(as.Date(valid_subset$Date_last_renewal))
+#valid_subset$Date_start_contract <- as.numeric(as.Date(valid_subset$Date_start_contract))
 
 #valid_subset_rf <- valid_subset_rf %>% select(-Policies_in_force, -lm_1, -lm_3, -lm_14, -lm_pr, -dnn)
-valid_subset_rf <- valid_subset_rf %>% select(-Policies_in_force)
+valid_subset_rf <- valid_subset %>% select(-Policies_in_force)
 str(valid_subset_rf)
 
-y_hat <- predict(rf_model, newdata = valid_subset_rf)
-y_hat <- ifelse(y_hat >= threshold, 1, 0)
+y_hat <- predict(rf_model, newdata = valid_subset)
+#y_hat <- ifelse(y_hat >= threshold, 1, 0)
 
 # Calculate accuracy : 0.912117801538173 (91.21%)
-valid_accuracy <- mean(y_hat == valid_subset_rf$Claim)
+valid_accuracy <- mean(y_hat == valid_subset$Claim)
 print(paste("Model Accuracy:", valid_accuracy))
 
-mean(train_subset_rf$Claim == 0)
-mean(valid_subset_rf$Claim == 0)
+mean(train_subset$Claim == 0)
+mean(predictions == 0)
+mean(valid_subset$Claim == 0)
 mean(y_hat == 0)
+
+train_subset <- train_subset %>%
+  mutate(pred_claim = predictions)
+valid_subset <- valid_subset %>%
+  mutate(pred_claim = y_hat)
 
 ########################################
 # Random Forest : 0 or non-zero (end)
@@ -1982,16 +2234,91 @@ mean(y_hat == 0)
 # Deep neural network : 0 or non-zero (end)
 ########################################
 
+# We create 2 data frames for the deep neural network algorithm
+# to convert dates to numeric and normalise values :
+train_subset_dnn <- train_subset %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+valid_subset_dnn <- valid_subset %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+#str(train_subset)
+str(train_subset_dnn)
+
 # Assuming your train_subset has a target variable 'cost'
 # Filter the training data for only the claims
-train_claims <- train_subset[train_subset$pred_claim == 1, ]
+train_claims <- train_subset_dnn[train_subset_dnn$pred_claim == 1, ]
 
 # Ensure you have a target variable 'cost' for training
 # Define the formula for the neural network
-formula <- cost ~ predictors  # replace 'predictors' with your predictor variables
-
+formula <- as.formula(paste("Cost_claims_year ~", paste(desired_predictors, collapse = " + ")))
+str(train_claims)
+formula
 # Train the neural network
-nn_model <- neuralnet(formula, data = train_claims, hidden = c(5), linear.output = TRUE)
+nn_model <- neuralnet(formula, data = train_claims, hidden = c(6, 4, 2, 1), linear.output = TRUE)
+
+# Prepare the validation set
+# If there are rows with pred_claim = 0, set their costs to zero
+valid_subset_dnn$predicted_cost <- 0  # initialize the predicted costs with zeros
+
+# Now filter the validation set for predictions
+valid_claims <- valid_subset_dnn[valid_subset_dnn$pred_claim == 1, ]
+str(valid_claims)
+# Make predictions on the validation set where pred_claim = 1
+predictions <- predict(nn_model, newdata = valid_claims)
+# Inverse normalisation for the predictions
+predictions <- predictions * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+predictions
+
+# Assign predictions to the corresponding rows in valid_subset
+valid_subset_dnn$predicted_cost[valid_subset_dnn$pred_claim == 1] <- predictions
+
+# View the results
+head(valid_subset_dnn)
+str(valid_subset_dnn)
+
+valid_subset_dnn$predicted_cost
+valid_subset$Cost_claims_year
+RMSE(valid_subset_dnn$predicted_cost, valid_subset$Cost_claims_year)
+sum(valid_subset_dnn$predicted_cost)
+sum(valid_subset$Cost_claims_year)
+get_accuracy(valid_subset_dnn$predicted_cost, valid_subset$Cost_claims_year)
+
+########################################
+# Deep neural network : 0 or non-zero (end)
+########################################
+
+# Prepare the validation set
+# If there are rows with pred_claim = 0, set their costs to zero
+train_subset_dnn$predicted_cost <- 0  # initialize the predicted costs with zeros
+
+# Now filter the validation set for predictions
+train_claims <- train_subset_dnn[train_subset_dnn$pred_claim == 1, ]
+str(train_claims)
+# Make predictions on the validation set where pred_claim = 1
+predictions <- predict(nn_model, newdata = train_claims)
+# Inverse normalisation for the predictions
+predictions <- predictions * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+predictions
+
+# Assign predictions to the corresponding rows in valid_subset
+train_subset_dnn$predicted_cost[train_subset_dnn$pred_claim == 1] <- predictions
+
+# View the results
+head(train_subset_dnn)
+str(train_subset_dnn)
+
+train_subset_dnn$predicted_cost
+train_subset$Cost_claims_year
+RMSE(train_subset_dnn$predicted_cost, train_subset$Cost_claims_year)
+sum(train_subset_dnn$predicted_cost)
+sum(train_subset$Cost_claims_year)
+get_accuracy(train_subset_dnn$predicted_cost, train_subset$Cost_claims_year)
+
+
+
+
+
 
 # Prepare the validation set
 # If there are rows with pred_claim = 0, set their costs to zero
@@ -1999,19 +2326,297 @@ valid_subset$predicted_cost <- 0  # initialize the predicted costs with zeros
 
 # Now filter the validation set for predictions
 valid_claims <- valid_subset[valid_subset$pred_claim == 1, ]
-
+str(train_claims)
 # Make predictions on the validation set where pred_claim = 1
-predictions <- predict(nn_model, newdata = valid_claims)
+train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", data = train_subset)
+predictions <- predict(train, valid_claims, type = "raw")
+# Inverse normalisation for the predictions
+#predictions <- predictions * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+predictions
 
 # Assign predictions to the corresponding rows in valid_subset
 valid_subset$predicted_cost[valid_subset$pred_claim == 1] <- predictions
 
 # View the results
 head(valid_subset)
+str(valid_subset)
 
-########################################
-# Deep neural network : 0 or non-zero (end)
-########################################
+valid_subset$predicted_cost
+valid_subset$Cost_claims_year
+RMSE(valid_subset$predicted_cost, valid_subset$Cost_claims_year)
+sum(valid_subset$predicted_cost)
+sum(valid_subset$Cost_claims_year)
+get_accuracy(valid_subset$predicted_cost, valid_subset$Cost_claims_year)
+
+valid_claims$predicted_cost <- predictions
+
+sum(valid_claims$Cost_claims_year)
+sum(valid_claims$predicted_cost)
+
+mean(valid_claims$Cost_claims_year > 0)
+mean(valid_claims$predicted_cost > 0)
+
+valid_no_claims <- valid_subset[valid_subset$pred_claim == 0, ]
+sum(valid_no_claims$Cost_claims_year)
+sum(valid_no_claims$predicted_cost)
+
+str(train_subset)
+mean(train_subset$Cost_claims_year == 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+mean(valid_subset$lm_pr > 50)
+mean(valid_subset$Cost_claims_year == 0)
+
+# Now filter the validation set for predictions
+valid_claims <- valid_subset[valid_subset$Cost_claims_year > 0, ]
+valid_no_claims <- valid_subset[valid_subset$Cost_claims_year == 0, ]
+mean(valid_claims$Cost_claims_year == 0)
+mean(valid_no_claims$Cost_claims_year == 0)
+
+# Create a boxplot for Cost_claims_year
+ggplot(valid_claims, aes(x = "", y = Cost_claims_year)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Cost Claims Year",
+       x = "",
+       y = "Cost Claims Year") +
+  theme_minimal()
+
+# Calculate Q1 and Q3
+Q1 <- quantile(valid_claims$Cost_claims_year, 0.25)
+Q3 <- quantile(valid_claims$Cost_claims_year, 0.75)
+IQR_value <- Q3 - Q1
+
+# Define bounds for outliers
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Filter the data to remove outliers
+filtered_claims <- valid_claims[valid_claims$Cost_claims_year >= lower_bound &
+                                  valid_claims$Cost_claims_year <= upper_bound, ]
+
+# Optionally, view the filtered data
+print(filtered_claims)
+min(filtered_claims$Cost_claims_year)
+max(filtered_claims$Cost_claims_year)
+
+min(valid_no_claims$dnn)
+max(valid_no_claims$dnn)
+
+min(valid_no_claims$lm_pr)
+max(valid_no_claims$lm_pr)
+
+RMSE(filtered_claims$Cost_claims_year, filtered_claims$lm_pr)
+RMSE(filtered_claims$Cost_claims_year, filtered_claims$dnn)
+results
+mean(valid_claims$Cost_claims_year == 0)
+
+RMSE(valid_no_claims$Cost_claims_year, valid_no_claims$lm_pr)
+RMSE(valid_no_claims$Cost_claims_year, valid_no_claims$dnn)
+valid_no_claims$Cost_claims_year
+valid_no_claims$lm_pr
+valid_no_claims$dnn
+
+
+
+
+
+
+
+
+
+
+mean(train_subset$Cost_claims_year == 0)
+
+# Step 1: Filter out zeros
+non_zero_costs <- train_subset[train_subset$Cost_claims_year > 0, ]
+
+# Step 2: Calculate Q1 and Q3 for non-zero costs
+Q1 <- quantile(non_zero_costs$Cost_claims_year, 0.25, na.rm = TRUE)
+Q3 <- quantile(non_zero_costs$Cost_claims_year, 0.75, na.rm = TRUE)
+IQR_value <- Q3 - Q1
+
+# Step 3: Define bounds for outliers
+lower_bound <- Q1 - 1.5 * IQR_value  # This will be negative or very low
+upper_bound <- Q3 + 1.5 * IQR_value   # This will be greater than 0
+
+# Step 4: Filter the data to remove outliers
+filtered_cost_claims <- non_zero_costs[non_zero_costs$Cost_claims_year <= upper_bound, ]
+
+# Step 5: Combine zero claims with filtered non-zero claims
+zero_claims <- train_subset[train_subset$Cost_claims_year == 0, ]
+filtered_claims <- rbind(filtered_cost_claims, zero_claims)
+
+str(filtered_claims)
+head(filtered_claims)
+
+# Sort filtered_claims by Date_last_renewal and then by ID
+filtered_claims <- filtered_claims[order(filtered_claims$Date_last_renewal, 
+                                         filtered_claims$ID), ]
+filtered_subset <- train_subset %>%
+  filter(Cost_claims_year < upper_bound)
+
+# We create 2 data frames for the deep neural network algorithm
+# to convert dates to numeric and normalise values :
+train_subset_dnn <- train_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+valid_subset_dnn <- valid_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+
+# Set the seed so we get the same results each time:
+set.seed(123)
+
+# Build the neural network model
+model <- neuralnet(
+  Cost_claims_year ~ Date_last_renewal + R_Claims_history + Driving_age,
+  data = train_subset_dnn,
+  hidden = c(5, 4, 3, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
+
+# Plot the model :
+plot(model, rep = "best")
+
+# Make predictions on the validation set :
+y_hat <- predict(model, valid_subset_dnn)
+
+# Inverse normalisation for the predictions
+y_hat <- y_hat * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "Deep Neural Network (2)")
+results
+
+
+
+
+# We create 2 data frames for the deep neural network algorithm
+# to convert dates to numeric and normalise values :
+train_subset_dnn <- train_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+valid_subset_dnn <- valid_subset %>%
+  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
+         Date_start_contract = as.numeric(Date_start_contract)) %>%
+  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
+
+# Convert all factor columns to numeric in the dataset
+train_subset[] <- lapply(train_subset, function(x) {
+  if (is.factor(x)) {
+    as.numeric(as.character(x))
+  } else {
+    x
+  }
+})
+valid_subset[] <- lapply(valid_subset, function(x) {
+  if (is.factor(x)) {
+    as.numeric(as.character(x))
+  } else {
+    x
+  }
+})
+
+# Optionally, view the updated data frame
+print(filtered_claims)
+
+train_subset_dnn <- train_subset_dnn %>% select(-Claim)
+# Set the seed so we get the same results each time:
+set.seed(123)
+
+# Build the neural network model
+model <- neuralnet(
+  Cost_claims_year ~ Cost_claims_year ~ Date_last_renewal +
+    R_Claims_history +
+    Driving_age,
+  data = train_subset_dnn,
+  hidden = c(5, 4, 3, 1),
+  linear.output = TRUE
+  #  threshold = 0.01,
+  #  rep = 5
+)
+
+# Plot the model :
+plot(model, rep = "best")
+
+# Make predictions on the validation set :
+y_hat <- predict(model, valid_subset_dnn)
+
+# Inverse normalisation for the predictions
+y_hat <- y_hat * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "Deep Neural Network (2)")
+results
+str(valid_subset_dnn)
+
+valid_subset_preds <- valid_subset %>%
+  select(Cost_claims_year, lm_pr, dnn)
+head(valid_subset_preds)
+
+# Create a boxplot for Cost_claims_year
+ggplot(valid_subset_preds, aes(x = "", y = dnn)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Cost Claims Year",
+       x = "",
+       y = "Cost Claims Year") +
+  theme_minimal()
+ggplot(valid_subset_preds, aes(x = "", y = lm_pr)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Cost Claims Year",
+       x = "",
+       y = "Cost Claims Year") +
+  theme_minimal()
+
+
+
+
+
+library(pscl)
+train_subset_pscl <- train_subset %>%
+  mutate(cost = Cost_claims_year * 100)
+
+# Fit Zero-Inflated Poisson model
+zip_model <- zeroinfl(cost ~ Date_last_renewal + R_Claims_history + Driving_age, 
+                      data = train_subset_pscl)
+str(train_subset)
+# Summary of the model
+summary(zip_model)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
