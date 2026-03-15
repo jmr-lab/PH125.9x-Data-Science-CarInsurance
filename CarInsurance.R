@@ -1310,33 +1310,36 @@ get_accuracy <- function(costs, predictions) {
 # Define the new cutoff date
 cutoff_subset_date <- as.Date("2018-06-01")
 
-train_set <- train_set %>%
+tmp_set <- train_set %>%
   mutate(Status = if_else(year(Date_start_contract) == Year, 1, 0),
          Claim = if_else(Cost_claims_year > 0, 1, 0)) %>%
   select(where(~ !any(is.na(.)))) %>%
   select(-Premium, -N_claims_year, -Year)
 # Convert specified columns to factors
 factor_columns <- c("Distribution_channel", "Policies_in_force", "Payment", "Type_risk", "Area", "Second_driver", "N_doors", "Status", "Claim")
-train_set[factor_columns] <- sapply(train_set[factor_columns], as.factor, simplify = FALSE)
+tmp_set[factor_columns] <- sapply(tmp_set[factor_columns], as.factor, simplify = FALSE)
 # Convert Date_last_renewal to numeric
-train_set$Date_last_renewal <- as.numeric(as.Date(train_set$Date_last_renewal))
-train_set$Date_start_contract <- as.numeric(as.Date(train_set$Date_start_contract))
+tmp_set$Date_last_renewal <- as.numeric(as.Date(tmp_set$Date_last_renewal))
+tmp_set$Date_start_contract <- as.numeric(as.Date(tmp_set$Date_start_contract))
 
-# Create train subset from train_set
+# Create train subset from tmp_set
 # Add Status column (New or Ongoing),
 # Claim to indicate 1 if there is a claim or more, 0 otherwise, 
 # and remove unneeded columns :
 # Premium and N_claims_year as they contain values that are related to Cost_claims_year
 # and all columns containing NA values
-train_subset <- train_set %>%
+train_subset <- tmp_set %>%
   filter(Date_last_renewal < cutoff_subset_date)
 nrow(train_subset)
 str(train_subset)
 
-# Create a validation subset from train_set the same way :
-valid_subset <- train_set %>%
+# Create a validation subset from tmp_set the same way :
+valid_subset <- tmp_set %>%
   filter(Date_last_renewal >= cutoff_subset_date)
 nrow(valid_subset)
+
+# Delete the tmp_set :
+rm(tmp_set)
 
 # And add/remove columns on the test set the same way :
 test_set <- test_set %>%
@@ -1490,99 +1493,6 @@ valid_subset <- valid_subset %>%
   mutate(lm_14 = y_hat)
 
 #########################################################
-#         6.4 Polynomial Regression                     #
-#########################################################
-
-# Linear Model with 1 parameter and polynomial regression :
-# RMSE = 474.2981
-# Error = 0.562
-formula <- Cost_claims_year ~
-  poly(Date_last_renewal, 4) + 
-  poly(R_Claims_history, 9) +
-  poly(Driving_age, 8)
-
-train <- train(formula, method = "lm", data = train_subset)
-
-# Predict the values :
-y_hat <- predict(train, valid_subset, type = "raw")
-
-# Update the results table :
-results <- update_results(valid_subset, y_hat, "Polynomial Regression")
-results
-
-# Update the valid_subset with the predictions :
-valid_subset <- valid_subset %>%
-  mutate(lm_pr = y_hat)
-
-# Replace values in lm_pr below the threshold with 0
-#mean(valid_subset$lm_pr < 0)
-#modified_lm_pr <- ifelse(valid_subset$lm_pr < threshold, 0, valid_subset$lm_pr)
-
-#########################################################
-#         6.4 Plots                                     #
-#########################################################
-
-# Calculate weekly summary data :
-weekly_summary <- valid_subset %>%
-  select(Date_last_renewal, Cost_claims_year, lm_1, lm_3, lm_14, lm_pr) %>%
-  mutate(Date_last_renewal = as.Date(Date_last_renewal, origin = "1970-01-01"), # Adjust origin if necessary
-         Week = floor_date(Date_last_renewal, unit = "week")) %>%
-  group_by(Week) %>%
-  summarize(
-    Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
-    Total_lm_1 = sum(lm_1, na.rm = TRUE),
-    Total_lm_3 = sum(lm_3, na.rm = TRUE),
-    Total_lm_14 = sum(lm_14, na.rm = TRUE),
-    Total_lm_pr = sum(lm_pr, na.rm = TRUE)
-  )
-
-# Plot the weekly summary :
-weekly_summary_plot <- weekly_summary %>%
-  ggplot(aes(x = Week)) +
-  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 1) +
-  geom_line(aes(y = Total_lm_1, color = "Linear Model 1"), size = 1) +
-#  geom_line(aes(y = Total_lm_3, color = "Linear Model 3"), size = 1) +
-  geom_line(aes(y = Total_lm_14, color = "Linear Model 14"), size = 1) +
-  geom_line(aes(y = Total_lm_pr, color = "Polynomial Regression"), size = 1) +
-  labs(x = "Week", y = "Values") +
-  scale_color_manual(name = "Legend", 
-                     values = c("Cost" = "darkgrey",
-                                "Linear Model 1" = "darkblue",
-#                                "Linear Model 3" = "darkorange",
-                                "Linear Model 14" = "darkgreen",
-                                "Polynomial Regression" = "darkred"
-                     )) +
-  theme_minimal() +
-  theme(text = element_text(size = 9), legend.position = "top") +
-  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
-weekly_summary_plot
-
-# Plot the difference (error) between the prediction and the real cost :
-# Reshape data for ggplot using pivot_longer
-data_long <- valid_subset %>%
-  mutate(
-    diff_1 = Cost_claims_year - lm_1,
-    diff_3 = Cost_claims_year - lm_3,
-    diff_14 = Cost_claims_year - lm_14,
-    diff_pr = Cost_claims_year - lm_pr
-  ) %>%
-  select(diff_1, diff_3, diff_14, diff_pr) %>%
-  pivot_longer(cols = everything(),
-               names_to = "Variable",
-               values_to = "Value")
-
-# Remove all values above 1000 (absolute value)
-data_long <- data_long %>% filter(Value < 1000, Value > -1000)
-
-# Plot histograms
-ggplot(data_long, aes(x = Value)) +
-  geom_histogram(binwidth = 10, fill = "darkblue", alpha = 0.7, color = "black") +
-  facet_wrap(~ Variable, scales = "free") +
-  labs(x = "Value", y = "Count") +
-  scale_x_continuous(limits = c(-1000, 1000)) +
-  theme_minimal()
-
-#########################################################
 #         6.5 Deep Neural Network                       #
 #########################################################
 
@@ -1599,7 +1509,7 @@ ggplot(data_long, aes(x = Value)) +
 # We create 2 data frames for the deep neural network algorithm
 # to convert dates to numeric and normalise values :
 train_subset_dnn <- train_subset %>%
-  filter(Cost_claims_year <= 882) %>%
+  #  filter(Cost_claims_year <= 882) %>%
   mutate(Date_last_renewal = as.numeric(Date_last_renewal),
          Date_start_contract = as.numeric(Date_start_contract)) %>%
   mutate_if(is.factor, ~ as.numeric(.)) %>%
@@ -1632,20 +1542,42 @@ formula
 set.seed(123)
 
 # Build the neural network model
-model <- neuralnet(
+neural_network_model <- neuralnet(
   formula,
   data = train_subset_dnn,
-  hidden = c(6, 4, 2, 1),
+  hidden = c(9, 8, 6, 5, 4, 3, 2, 1),
   linear.output = TRUE
   #  threshold = 0.01,
   #  rep = 5
 )
 
 # Plot the model :
-plot(model, rep = "best")
+plot(neural_network_model, rep = "best")
+
+# Plot with adjusted parameters
+plot(neural_network_model, 
+     rep = "best",               # Use the best net if there are multiple
+     maxsize = 6,              # Max size of nodes
+     cex = 0.5)                # Size of text
+
+# Save as PNG with a larger size
+#png("neural_network_plot.png", width = 1200, height = 800)
+#plot(neural_network_model, max.size = 10) # Adjust max.size if necessary
+#dev.off()
+
+# Create a PNG file with a larger size
+#png("neural_network_plot.png", width = 1200, height = 800)
+
+# Save as PDF
+#pdf("neural_network_plot.pdf", width = 12, height = 8)
+#plot(neural_network_model, 
+#     rep = "best", 
+#     maxsize = 10, 
+#     cex = 0.75)
+#dev.off() # Close the device
 
 # Make predictions on the validation set :
-y_hat <- predict(model, valid_subset_dnn)
+y_hat <- predict(neural_network_model, valid_subset_dnn)
 
 # Inverse normalisation for the predictions
 y_hat <- y_hat * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
@@ -1658,9 +1590,193 @@ results
 valid_subset <- valid_subset %>%
   mutate(dnn = y_hat)
 
+#########################################################
+#         6.6 Polynomial Regression                     #
+#########################################################
+
+# Linear Model with 1 parameter and polynomial regression :
+# RMSE = 474.2981
+# Error = 0.562
+formula <- Cost_claims_year ~
+  poly(Date_last_renewal, 4) + 
+  poly(R_Claims_history, 9) +
+  poly(Driving_age, 8)
+
+train_subset_log10 <- train_subset %>%
+  mutate(Cost_claims_year = log10(Cost_claims_year + 45000))
+
+train <- train(formula, method = "lm", data = train_subset_log10)
+
+# Predict the values :
+y_hat <- predict(train, valid_subset, type = "raw")
+
+# Invert the log10 transformation :
+y_hat <- 10^y_hat - 45000
+
+# Replace negative values with 0 :
+y_hat <- pmax(y_hat, 0)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "Polynomial Regression (log10)")
+results
+
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(lm_pr = y_hat)
+
+# Replace values in lm_pr below the threshold with 0
+#mean(valid_subset$lm_pr < 0)
+#modified_lm_pr <- ifelse(valid_subset$lm_pr < threshold, 0, valid_subset$lm_pr)
+
+#########################################################
+#         6.7 Plots                                     #
+#########################################################
+
+# Calculate weekly summary data :
+weekly_summary <- valid_subset %>%
+  select(Date_last_renewal, Cost_claims_year, lm_1, lm_3, lm_14, dnn, lm_pr) %>%
+  mutate(Date_last_renewal = as.Date(Date_last_renewal, origin = "1970-01-01"), # Adjust origin if necessary
+         Week = floor_date(Date_last_renewal, unit = "week")) %>%
+  group_by(Week) %>%
+  summarize(
+    Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
+    Total_lm_1 = sum(lm_1, na.rm = TRUE),
+    Total_lm_3 = sum(lm_3, na.rm = TRUE),
+    Total_lm_14 = sum(lm_14, na.rm = TRUE),
+    Total_dnn = sum(dnn, na.rm = TRUE),
+    Total_lm_pr = sum(lm_pr, na.rm = TRUE)
+  )
+
+# Plot the weekly summary :
+weekly_summary_plot <- weekly_summary %>%
+  ggplot(aes(x = Week)) +
+  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = Total_lm_1, color = "Linear Model 1"), size = 1) +
+#  geom_line(aes(y = Total_lm_3, color = "Linear Model 3"), size = 1) +
+  geom_line(aes(y = Total_lm_14, color = "Linear Model 14"), size = 1) +
+  geom_line(aes(y = Total_dnn, color = "Deep Neural Network"), size = 1) +
+  geom_line(aes(y = Total_lm_pr, color = "Polynomial Regression"), size = 1) +
+  labs(x = "Week", y = "Values") +
+  scale_color_manual(name = "Legend", 
+                     values = c("Cost" = "darkgrey",
+                                "Linear Model 1" = "darkblue",
+#                                "Linear Model 3" = "darkorange",
+                                "Linear Model 14" = "darkgreen",
+                                "Deep Neural Network" = "darkorange",
+                                "Polynomial Regression" = "darkred"
+                     )) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+weekly_summary_plot
+
+# Plot the difference (error) between the prediction and the real cost :
+# Reshape data for ggplot using pivot_longer
+data_long <- valid_subset %>%
+  mutate(
+    err_lm_1 = lm_1 - Cost_claims_year,
+    err_lm_3 = lm_3 - Cost_claims_year,
+    err_lm_14 = lm_14 - Cost_claims_year,
+    err_lm_pr = lm_pr - Cost_claims_year
+  ) %>%
+  select(err_lm_1, err_lm_3, err_lm_14, err_lm_pr) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Variable",
+               values_to = "Value")
+
+# Remove all values above 1000 (absolute value)
+data_long <- data_long %>% filter(Value < 1000, Value > -1000)
+
+# Plot histograms
+ggplot(data_long, aes(x = Value)) +
+  geom_histogram(binwidth = 10, fill = "darkblue", alpha = 0.7, color = "black") +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(x = "Value", y = "Count") +
+  scale_x_continuous(limits = c(-1000, 1000)) +
+  theme_minimal()
+
 # Exit the script
 stop("Stopping the script.")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(lm_1_80 = lm_1 - 80)
+
+# Plot the difference (error) between the prediction and the real cost :
+# Reshape data for ggplot using pivot_longer
+data_long <- valid_subset %>%
+  mutate(
+    err_lm_1 = Cost_claims_year - lm_1,
+    err_lm_1_80 = Cost_claims_year - lm_1_80,
+    err_lm_3 = Cost_claims_year - lm_3,
+    err_lm_14 = Cost_claims_year - lm_14,
+    err_lm_pr = Cost_claims_year - lm_pr
+  ) %>%
+  select(err_lm_1, err_lm_1_80, err_lm_3, err_lm_14, err_lm_pr) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Variable",
+               values_to = "Value")
+
+# Remove all values above 1000 (absolute value)
+data_long <- data_long %>% filter(Value < 1000, Value > -1000)
+
+# Plot histograms
+ggplot(data_long, aes(x = Value)) +
+  geom_histogram(binwidth = 10, fill = "darkblue", alpha = 0.7, color = "black") +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(x = "Value", y = "Count") +
+  scale_x_continuous(limits = c(-20, 20)) +
+  theme_minimal()
+
+RMSE(valid_subset$Cost_claims_year, valid_subset$lm_1_80)
+get_error(sum(valid_subset$Cost_claims_year), sum(valid_subset$lm_1_80))
+get_accuracy(valid_subset$Cost_claims_year, valid_subset$lm_1_80)
+
+# Update the results table :
+results <- update_results(valid_subset, valid_subset$lm_1_80, "Linear Model (1 Variable Scaled)")
+results
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+valid_subset
 
 RMSE(valid_subset$Cost_claims_year, y_hat)
 

@@ -923,7 +923,7 @@ So if we estimate all costs to be the mean of the costs of the training subset, 
 
 Note that this value will minimise the RMSE in the training set as it is the average value for all costs of this set. The RMSE in the training set will be `r round(RMSE(train_subset$Cost_claims_year, avg_cost), 2)` which is quite high.
 
-The resulting RMSE, relative error and accuracy will then be : 
+The resulting RMSE, relative error and accuracy **in the validation set** will then be : 
 
 ```{r, echo=FALSE}
 data_summary <- results %>%
@@ -1014,13 +1014,99 @@ The linear model with one variable shows a moderate improvement, indicating that
 
 \newpage
 
-**Polynomial Regression**
+## 6.4 Deep Neural Network
 
+The algorithm we will use now is the neural network model. In this model, we consider the reduction in costs over 
+
+**Understanding Deep Neural Networks**
+
+Deep Neural Networks (DNNs) are a subset of artificial intelligence that emulate the workings of the human brain in processing complex data inputs. Composed of layers of interconnected nodes (or neurons), DNNs learn to identify patterns and make predictions by adjusting the weights of these connections based on the errors observed in their predictions. A typical DNN consists of three types of layers: the input layer, hidden layers, and the output layer.
+
+**Structure of DNN**
+
+Input Layer : This layer receives the raw data, such as features from customer profiles (e.g., renewal date, age, claims history, value of vehicle).
+
+Hidden Layers : These layers perform computations and feature extraction. Each layer processes the data and passes it onto the next layer.
+
+Output Layer : The final layer produces the prediction, such as the expected insurance cost.
+
+**Schema of a Deep Neural Network**
+
+Here's a simple schema illustrating a DNN where each neuron is represented by a circle, each synapse by an arrow, and the neurons of the input layers are in red, while the (only) neuron of the output layer is in green :
+
+```{r, echo=FALSE, message=FALSE, out.width='50%', fig.align="center", fig.cap = "Example of a Deep Neural Network"}
+knitr::include_graphics("deep-neural-network.png")
+```
+
+\newpage
+
+**How DNN Works**
+
+Forward Propagation : Data flows from the input layer through the hidden layers to the output layer, generating predictions :
+
+```{r, echo=FALSE, message=FALSE, out.width='50%', fig.align="center", fig.cap = "Example of a Deep Neural Network"}
+knitr::include_graphics("neuron.png")
+```
+
+In our work, we will use the sigmoid function to calculate the output \( y \) based on the inputs \( x_i \), weights \( w_i \) and a bias \( b \) :
+
+\[
+y = f(\sum_{i=1}^{N} w_i * x_i + b)
+\]
+
+where
+\[
+f(z) = \dfrac{1}{1 + e^{-z}}
+\]
+
+Loss Calculation : The predictions are compared to the actual outcomes to compute a loss value, representing the prediction error.
+
+Backpropagation : This process involves adjusting the weights of the connections to minimize the error, enabling the network to learn from its mistakes.
+
+Through repeated cycles of forward propagation and backpropagation, DNNs gradually refine their predictions, making them powerful tools for predicting outputs based on various input factors.
+
+We will run the model on all variables but ID and Lapse, and 8 hidden layers.
+
+The resulting RMSE, relative error and accuracy for the Linear Models will be : 
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (14 Variables)",
+                             "Deep Neural Network"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+**Performance Evaluation of the DNN**
+
+The DNN exhibits an RMSE of 516, placing it among the higher RMSE values when compared to simpler models. This suggests that while the DNN has the potential for complex relationships, it has not effectively captured the underlying patterns in the data.
+
+One of the most concerning aspects is the error metric, which stands at an alarming 2521015 (384% of the expected cost). This high error indicates a significant deviation between the predicted and actual costs, demonstrating that the model is not accurately estimating the insurance costs.
+
+In contrast to simpler models, such as linear and polynomial regression, the DNN fails to demonstrate superior predictive accuracy.
+
+\newpage
+
+## 6.5 Polynomial Regression
+
+Polynomial regression is a statistical technique that extends linear regression by allowing for a non-linear relationship between the independent and dependent variables. Instead of fitting a straight line to the data, polynomial regression fits a polynomial equation, which can be of varying degrees based on the complexity needed to describe the relationship. For instance, a second-degree polynomial regression creates a parabolic curve, while higher degrees can produce more complex shapes.
+
+This technique is particularly useful for modeling data when the relationship between variables is not adequately captured by a straight line, enabling better predictions and insights. Polynomial regression incorporates powers of the independent variable(s) (e.g., x^2, x^3) into the model, which allows for bending the curve to fit the data more accurately.
+ 
 We can further improve our model by using a Polynomial Regression to predict the costs :
 
 ```{r, eval=FALSE}
-# Train the model using the lm linear regression :
-train <- train(Cost_claims_year ~ poly(Date_last_renewal, 4), method = "lm", data = train_subset)
+# Use 3 predictors Date_last_renewal, R_Claims_history and Driving_age :
+formula <- Cost_claims_year ~
+  poly(Date_last_renewal, 4) + 
+  poly(R_Claims_history, 9) +
+  poly(Driving_age, 8)
+
+# Train the model using a polynomial regression :
+train <- train(formula, method = "lm", data = train_subset)
 
 # Predict the values :
 y_hat <- predict(train, valid_subset, type = "raw")
@@ -1031,7 +1117,8 @@ We can notice that even with one predictor, the results are much better :
 ```{r, echo=FALSE}
 data_summary <- results %>%
         filter(Method %in% c("Average (Baseline)",
-                             "Linear Model (1 Variable)",
+                             "Linear Model (14 Variables)",
+                             "Deep Neural Network",
                              "Polynomial Regression"))
 kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
@@ -1039,7 +1126,15 @@ kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args
   row_spec(0, bold = TRUE)
 ```
 
-The RMSE is one of the lowest ones so far, the relative error is now -1.3%, and the accuracy almost 10%.
+The polynomial regression achieved an RMSE of 470, which signifies a relatively low average error between predicted and actual values. This positions the polynomial model favorably against several alternative methods and indicates its effectiveness in capturing the underlying patterns in the data effectively.
+
+The model's relative error metric of 1% shows that the predictions are reasonably close to the actual costs, indicating that the polynomial regression can be more reliable in terms of cost estimates than other models.
+
+With an accuracy of 0.153, the model demonstrates moderate performance. While this figure illustrates that the polynomial regression is better accurately aligning its predictions compared to more complex models like the DNN, it still falls short of optimal prediction accuracy, suggesting there is room for further improvement.
+
+\newpage
+
+## 6.6 Plots
 
 ```{r, echo=FALSE, fig.align="center", fig.cap = "Total Cost per Week", fig.height=3}
 weekly_summary_plot
@@ -1047,55 +1142,9 @@ weekly_summary_plot
 
 \newpage
 
-## 6.4 Linear Regression
+## 6.7 Improvements
 
-Substituting the optimal \( x^* \) back into \( RMSE(x) \):
-
-\[
-RMSE(x^*) = \sqrt{\frac{1}{N} \sum_{i=1}^{N} \left(\frac{1}{N} \sum_{j=1}^{N} y_j - y_i\right)^2}
-\]
-
-This value represents the minimum distance between \( x \) and the set of constants \( y_i \). The optimal solution is to set \( x \) equal to the mean of \( y_i \) to minimize the function.
-
-The average for the predictions is : $\mu$ = 3.512465
-
-If we choose a constant number for the predictions, then $\mu$ will be the one which will give the minimum RMSE :
-
-\begin{equation}
-\Large
-\hat{y}_{i} = \mu
-\end{equation}
-
-The RMSE will then be : RMSE = 1.060331
-
-The error can be defined as :
-
-\begin{equation}
-\Large
-\epsilon_{i} = \hat{y}_{i} - y_{i}
-\end{equation}
-
-The following plots illustrate the distribution of ratings in descending order, with the average value represented by a horizontal orange line. The plot on the right depicts the distribution of errors :
-
-```{r, echo=FALSE, fig.align="center", fig.cap = "Prediction (average)", fig.height=2}
-#plot_grid(
-#  edx_movies %>% select(rating) %>% sample_n(10000) %>% #arrange(desc(rating)) %>%
-#  mutate(index = row_number()) %>%
-#  ggplot(aes(x = index, y = rating)) +
-#  geom_area(color = "darkred", fill="darkred", alpha = 0.1) +
-#  geom_hline(yintercept = mu, color = "orange", linetype = "dashed", #size = 1) +
-#  theme_minimal() + theme(text = element_text(size = 9)) +
-#  labs(x = "Index", y = "Rating"),
-#  
-#  ggplot(edx_movies, aes(x = rating - mu)) +
-#  geom_histogram(color="darkred", fill="darkred", alpha = 0.1, #position="dodge", bins = 30) +
-#  scale_y_continuous(labels = label_number(scale = 1e-6, suffix = "M")) #+
-#  scale_color_brewer(palette="Accent") + 
-#  theme_minimal() + theme(text = element_text(size = 9), legend.position #= "top") +
-#  labs(x = "Error", y = "Number of Ratings"),
-#  
-#  ncol = 2, align = 'hv', rel_heights = c(2, 2))
-```
+We can further improve our model by remove negative predictions and at the same time trying to keep the same total cost. We can also try to use the best predictions from each model.
 
 \newpage
 
