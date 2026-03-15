@@ -1603,7 +1603,7 @@ formula <- Cost_claims_year ~
   poly(Driving_age, 8)
 
 train_subset_log10 <- train_subset %>%
-  mutate(Cost_claims_year = log10(Cost_claims_year + 45000))
+  mutate(Cost_claims_year = log10(Cost_claims_year + 40000))
 
 train <- train(formula, method = "lm", data = train_subset_log10)
 
@@ -1611,7 +1611,7 @@ train <- train(formula, method = "lm", data = train_subset_log10)
 y_hat <- predict(train, valid_subset, type = "raw")
 
 # Invert the log10 transformation :
-y_hat <- 10^y_hat - 45000
+y_hat <- 10^y_hat - 40000
 
 # Replace negative values with 0 :
 y_hat <- pmax(y_hat, 0)
@@ -1698,7 +1698,107 @@ ggplot(data_long, aes(x = Value)) +
 # Exit the script
 stop("Stopping the script.")
 
+#########################################################
+#         6.6 Polynomial Regression                     #
+#########################################################
 
+# Polynomial regression using three predictors. Degrees chosen
+# by prior tuning: Date_last_renewal (degree 4), R_Claims_history
+# (degree 9) and Driving_age (degree 8). The target is heavily
+# zero-inflated, so we apply a log10(offset + target) transform
+# during training and invert it for predictions.
+
+# Formula for the linear model on transformed target :
+formula <- Cost_claims_year ~
+  poly(Date_last_renewal, 4) + 
+  poly(R_Claims_history, 9) +
+  poly(Driving_age, 8)
+
+sweep_offsets <- function(train_subset, valid_subset, formula,
+                          offsets = seq(1000, 60000, by = 1000)) {
+  
+  compute_for_offset <- function(off) {
+    # prepare training data with log10 transform using offset
+    train2 <- train_subset %>%
+      mutate(Cost_claims_year = log10(Cost_claims_year + off))
+    
+    # fit model (lm via caret::train as in your original code)
+    model <- train(formula, method = "lm", data = train2)
+    
+    # predict on validation (predictions are on log10 scale)
+    y_hat_log <- predict(model, valid_subset, type = "raw")
+    
+    # invert transform and floor negatives
+    y_hat <- 10^as.numeric(y_hat_log) - off
+    y_hat <- pmax(y_hat, 0)
+    
+    # use original validation true values
+    y_true <- valid_subset$Cost_claims_year
+    
+    # metrics
+    rmse_val <- RMSE(y_hat, y_true)
+    relerr_val <- get_error(sum(y_true), sum(y_hat))
+    acc_val <- get_accuracy(y_true, y_hat)
+    total_costs <- sum(y_true)
+    total_predictions <- sum(y_hat)
+    
+    # Return numeric vector of results for this offset :
+    c(offset = off,
+      rmse = rmse_val, relerr = relerr_val, accuracy = acc_val,
+      total_costs = total_costs, total_predictions = total_predictions)
+  }
+  
+  # Evaluate compute_for_offset across each offset and collect results.
+  # sapply returns a matrix; transpose and convert to data.frame :
+  res_mat <- sapply(offsets, compute_for_offset)
+  res_df <- as.data.frame(t(res_mat), row.names = NULL)
+  
+  # Ensure all columns are numeric (sapply may coerce to character) :
+  res_df[] <- lapply(res_df, function(x) as.numeric(as.character(x)))
+  res_df
+}
+
+# Run the offset sweep to collect metrics for plotting and summary :
+metrics_df <- sweep_offsets(train_subset, valid_subset, formula)
+
+# Quick summaries for the three tracked metrics :
+min(metrics_df$rmse)
+min(abs(metrics_df$relerr))
+max(metrics_df$accuracy)
+
+# Plot RMSE vs offset: line with points for clarity :
+ggplot(metrics_df, aes(x = offset, y = rmse)) +
+  geom_line(color = "darkblue", size = 1) +
+  geom_point(color = "darkblue", size = 2) +
+  labs(x = "offset", y = "RMSE", title = "RMSE vs offset") +
+  theme_minimal()
+
+# Plot relative error vs offset :
+ggplot(metrics_df, aes(x = offset, y = relerr)) +
+  geom_line(color = "darkred", size = 1) +
+  geom_point(color = "darkred", size = 2) +
+  labs(x = "offset", y = "Error", title = "Error vs offset") +
+  theme_minimal()
+
+# Plot accuracy vs offset :
+ggplot(metrics_df, aes(x = offset, y = accuracy)) +
+  geom_line(color = "darkgreen", size = 1) +
+  geom_point(color = "darkgreen", size = 2) +
+  labs(x = "offset", y = "Accuracy", title = "Accuracy vs offset") +
+  theme_minimal()
+
+res <- metrics_df[which.min(abs(metrics_df$relerr)), c("rmse","relerr","accuracy", "total_costs", "total_predictions")]
+
+# Update the results table :
+results %>% add_row(Method = "Polynomial Regression",
+                    RMSE = round(res["rmse"], 2),
+                    Cost = round(res["total_costs"], 2),
+                    Estimation = round(res["total_predictions"], 2),
+                    Error = round(res["relerr"], 3),
+                    Accuracy = round(res["accuracy"], 3))
+
+# Exit the script
+stop("Stopping the script.")
 
 
 
