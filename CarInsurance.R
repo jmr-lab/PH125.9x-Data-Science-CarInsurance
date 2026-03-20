@@ -19,6 +19,7 @@ library(purrr)
 library(caret)
 library(neuralnet)
 library(randomForest)
+library(gam)
 
 #########################################################
 #         3. Dataset                                    #
