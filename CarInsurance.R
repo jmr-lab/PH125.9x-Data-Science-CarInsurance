@@ -733,6 +733,27 @@ plot_grid(
 #         5.3.1 Cost - Timeline                         #
 #########################################################
 
+# Proportion of claims per cost :
+yearly_costs <- insurance_data %>%
+  mutate(cost = round(Cost_claims_year / 10) * 10) %>%
+  group_by(Year, cost) %>%
+  summarise(nb_rows = n(), .groups = 'drop') %>%
+  arrange(Year, cost) %>%
+  mutate(cumulative_nb_rows = cumsum(nb_rows), .by = Year) %>%
+  mutate(total_rows = sum(nb_rows), .by = Year) %>%
+  mutate(percentage = cumulative_nb_rows / total_rows, .by = Year) %>%
+  select(Year, cost, percentage) %>%
+  filter(cost < 2000) %>%
+  ggplot(aes(x = cost, y = percentage, color = as.factor(Year))) +
+  geom_line(size = 1) +
+  labs(x = "Cost", y = "Percentage", color = "Year") +
+  scale_y_continuous(limits = c(0.5, 1),
+                     breaks = seq(0, 1, by = 0.1),
+                     labels = scales::percent_format(accuracy = 1)) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top")
+yearly_costs
+
 # Summarize total costs by month and year
 monthly_costs <- insurance_data %>%
   mutate(Year_Month = floor_date(Date_last_renewal, "month")) %>%
@@ -1390,6 +1411,10 @@ y_hat <- rep(avg_cost, nrow(valid_subset))
 results <- update_results(valid_subset, y_hat, "Average (Baseline)")
 results
 
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(pred_avg = y_hat)
+
 # Average for all values of last 3 months of the train_subset :
 avg_cost_3m <- train_subset %>%
   filter(Date_last_renewal >= as.Date(cutoff_subset_date) - months(3)) %>%
@@ -1404,7 +1429,7 @@ results <- update_results(valid_subset, y_hat, "Average (last 3 months)")
 results
 
 #########################################################
-#         6.3 Zero                                      #
+#         6.2 Zero                                      #
 #########################################################
 
 zero <- 0
@@ -1426,7 +1451,7 @@ results <- update_results(valid_subset, y_hat, "9.99")
 results
 
 #########################################################
-#         6.4 Linear Models                             #
+#         6.3 Linear Models                             #
 #########################################################
 
 # Linear Model with 1 parameter :
@@ -1493,7 +1518,7 @@ valid_subset <- valid_subset %>%
   mutate(lm_14 = y_hat)
 
 #########################################################
-#         6.5 Deep Neural Network                       #
+#         6.4 Deep Neural Network                       #
 #########################################################
 
 # Z-normalisation function
@@ -1591,7 +1616,7 @@ valid_subset <- valid_subset %>%
   mutate(dnn = y_hat)
 
 #########################################################
-#         6.6 Polynomial Regression                     #
+#         6.5 Polynomial Regression                     #
 #########################################################
 
 # Linear Model with 1 parameter and polynomial regression :
@@ -1620,41 +1645,365 @@ valid_subset <- valid_subset %>%
 #modified_lm_pr <- ifelse(valid_subset$lm_pr < threshold, 0, valid_subset$lm_pr)
 
 #########################################################
+#         6.6 Biases                                    #
+#########################################################
+
+# Filter the train_subset to only keep data from the current year
+train_subset_2018 <- train_subset %>%
+  mutate(Date_last_renewal = as.Date(Date_last_renewal, format = "%Y%m%d")) %>%
+  filter(format(Date_last_renewal, "%Y") == "2018") %>%
+  select(Status, Value_vehicle, Cost_claims_year)
+
+# Calculate the overall average cost
+overall_average <- mean(train_subset_2018$Cost_claims_year, na.rm = TRUE)
+
+# Calculate the average cost per Status and percentage over/under overall average
+status_summary <- train_subset_2018 %>%
+  group_by(Status) %>%
+  summarize(Average_Cost = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  mutate(Variation = (Average_Cost - overall_average) / overall_average)
+status_summary %>%
+  mutate(Status = recode(Status, `0` = "Ongoing", `1` = "New"))
+
+# Now we will adjust the cost based on the value of the vehicle
+
+# Create the boxplot
+ggplot(valid_subset, aes(y = Value_vehicle)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Vehicle Values by Status",
+       y = "Value of Vehicle") +
+  theme_minimal()
+
+# Calculate Q3, and IQR
+Q3 <- quantile(valid_subset$Value_vehicle, 0.75, na.rm = TRUE)
+IQR <- IQR(valid_subset$Value_vehicle, na.rm = TRUE)
+
+# Define upper bound
+upper_bound <- Q3 + 1.5 * IQR
+upper_bound
+
+# Round the Value_vehicle values :
+train_subset_2018 <- train_subset_2018 %>%
+  mutate(val_vehicle = round(Value_vehicle / 1000) * 1000) %>%
+  select(val_vehicle, Cost_claims_year)
+
+# Replace values over upper_bound :
+train_subset_2018$val_vehicle <- ifelse(
+  train_subset_2018$val_vehicle > upper_bound,
+  round(upper_bound / 1000) * 1000,
+  train_subset_2018$val_vehicle
+)
+str(train_subset_2018)
+
+# Calculate the average cost per value and percentage over/under overall average
+value_summary <- train_subset_2018 %>%
+  group_by(val_vehicle) %>%
+  summarize(Average_Cost = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  mutate(Variation = (Average_Cost - overall_average) / overall_average)
+value_summary
+
+# Round the Value_vehicle values :
+valid_subset <- valid_subset %>%
+  mutate(val_vehicle = round(Value_vehicle / 1000) * 1000)
+
+# Replace values over upper_bound :
+valid_subset$val_vehicle <- ifelse(
+  valid_subset$val_vehicle > upper_bound,
+  round(upper_bound / 1000) * 1000,
+  valid_subset$val_vehicle
+)
+
+# Adjust lm_pr values based on the variations :
+valid_subset <- valid_subset %>%
+  left_join(status_summary, by = "Status") %>%
+  mutate(lm_pr_adj = lm_pr + abs(lm_pr) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  left_join(value_summary, by = "val_vehicle") %>%
+  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
+  select(-Average_Cost, -Variation)
+
+# Update the results table :
+results <- update_results(valid_subset, valid_subset$lm_pr_adj, "PR with Biases")
+results
+
+#########################################################
+#         6.6 PR (log10 transformation)                 #
+#########################################################
+
+# Polynomial regression using three predictors. Degrees chosen
+# by prior tuning: Date_last_renewal (degree 4), R_Claims_history
+# (degree 9) and Driving_age (degree 8). The target is heavily
+# zero-inflated, so we apply a log10(offset + target) transform
+# during training and invert it for predictions.
+
+# Formula for the linear model on transformed target :
+formula <- Cost_claims_year ~
+  poly(Date_last_renewal, 4) + 
+  poly(R_Claims_history, 9) +
+  poly(Driving_age, 8)
+  
+# Define the offsets :
+#offsets <- seq(1000, 60000, by = 2000)
+offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100),
+             seq(1000, 40000, by = 5000),
+             seq(40000, 60000, by = 2000))
+#offsets <- seq(46000, 48000, by = 100)
+
+pr_sweep_offsets <- function(offset) {
+  # prepare training data with log10 transform using offset
+  train_log10 <- train_subset %>%
+    mutate(Cost_claims_year = log10(Cost_claims_year + offset)) %>%
+    select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
+  
+  # fit model (lm via caret::train as in your original code)
+  model <- train(formula, method = "lm", data = train_log10)
+
+  # Return the fitted model
+  return(model)
+}
+
+# Start timing
+start_time <- Sys.time()
+
+# Run the trainings
+model_offsets <- lapply(offsets, pr_sweep_offsets)
+
+# End timing
+end_time <- Sys.time()
+
+# Calculate duration
+duration <- as.numeric(difftime(end_time, start_time, units = "secs"))
+cat("Time taken:", duration, "seconds\n")
+
+# Convert the list to a named list for easier access
+names(model_offsets) <- as.character(offsets)
+
+# Create a data frame to store offsets and RMSE values
+metrics_df <- data.frame(offset = offsets,
+                         rmse = NA,
+                         error = NA,
+                         accuracy = NA)
+
+# Compute RMSE for each offset using res_pr
+for (i in seq_along(offsets)) {
+  # Get model for the current offset
+  model <- model_offsets[[i]]
+
+  # predict on validation (predictions are on log10 scale)
+  y_hat_log <- predict(model, valid_subset, type = "raw")
+  
+  # invert transform
+  y_hat <- 10^as.numeric(y_hat_log) - offsets[i]
+  
+  # Adjust lm_pr values based on the variations :
+  #valid_subset <- valid_subset %>%
+  #  mutate(lm_pr_adj = y_hat)
+  y_hat <- valid_subset %>%
+    left_join(status_summary, by = "Status") %>%
+    mutate(lm_pr_adj = y_hat + abs(y_hat) * Variation) %>%
+    select(-Average_Cost, -Variation) %>%
+    left_join(value_summary, by = "val_vehicle") %>%
+    mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
+    select(-Average_Cost, -Variation) %>%
+    pull(lm_pr_adj)
+
+  # floor negatives
+  y_hat <- pmax(y_hat, 0)
+
+  # Calculate Metrics (RMSE, Relative Error and Accuracy) :
+  metrics_df$rmse[i] <- RMSE(valid_subset$Cost_claims_year, y_hat)
+  metrics_df$error[i] <- get_error(sum(valid_subset$Cost_claims_year), sum(y_hat))
+  metrics_df$accuracy[i] <- get_accuracy(valid_subset$Cost_claims_year, y_hat)
+}
+
+# Save the metrics data frame
+#save(metrics_df, file = "metrics_df.RData")
+#model_43000 <- model_offsets[[as.character(offset_value)]]
+#save(model_43000, file = "model_43000.RData")
+
+# Set the 0.1% threshold :
+threshold <- 0.001
+
+# Find the index of the first error that is less than 1%
+i <- which(abs(metrics_df$error) < threshold)[1]  # Use [1] to get the first occurrence
+
+# Check if the index exists
+if (!is.na(i)) {
+  # Get the corresponding offset
+  offset_value <- offsets[i]
+  print(paste("First offset with error less than 1% error is:", offset_value))
+
+  print(metrics_df$rmse[i])
+  print(metrics_df$error[i])
+  print(metrics_df$accuracy[i])
+
+} else {
+  print("No error below the threshold found.")
+  # Find the index of the minimum error
+  i <- which.min(abs(metrics_df$error))
+  # Get the corresponding offset
+  offset_value <- offsets[i]
+  print(offset_value)
+  print(metrics_df$rmse[i])
+  print(metrics_df$error[i])
+  print(metrics_df$accuracy[i])
+}
+
+# Plot the 3 graphs :
+offset_results_plot <- plot_grid(
+
+  # Plot RMSE vs offset :
+  ggplot(metrics_df, aes(x = offset, y = rmse)) +
+    geom_line(color = "darkblue", size = 0.5) +
+#    geom_point(color = "darkblue", size = 2) +
+    labs(x = "Offset", y = "RMSE") +
+    theme_minimal() +
+    theme(text = element_text(size = 9)),
+
+  # Plot relative error vs offset :
+  ggplot(metrics_df, aes(x = offset, y = error)) +
+    geom_line(color = "darkred", size = 0.5) +
+#    geom_point(color = "darkred", size = 2) +
+    labs(x = "Offset", y = "Error") +
+    theme_minimal() +
+    theme(text = element_text(size = 9)),
+
+  # Plot accuracy vs offset :
+  ggplot(metrics_df, aes(x = offset, y = accuracy)) +
+    geom_line(color = "darkgreen", size = 0.5) +
+#    geom_point(color = "darkgreen", size = 2) +
+    labs(x = "Offset", y = "Accuracy") +
+    theme_minimal() +
+    theme(text = element_text(size = 9)),
+
+  ncol = 2, align = 'hv', rel_heights = c(2, 2, 2)
+)
+offset_results_plot
+
+# Get model for offset 43000 :
+model <- model_offsets[[as.character(offset_value)]]
+
+# predict on validation (predictions are on log10 scale)
+y_hat_log <- predict(model, valid_subset, type = "raw")
+
+# invert transform
+y_hat <- 10^as.numeric(y_hat_log) - offset_value
+
+# Adjust lm_pr values based on the variations :
+y_hat <- valid_subset %>%
+  left_join(status_summary, by = "Status") %>%
+  mutate(lm_pr_adj = y_hat + abs(y_hat) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  left_join(value_summary, by = "val_vehicle") %>%
+  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  pull(lm_pr_adj)
+
+# floor negatives
+y_hat <- pmax(y_hat, 0)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "PR + log10 transformation")
+results
+
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(lm_pr_adj = y_hat)
+
+# Exit the script
+stop("Stopping the script.")
+
+#########################################################
+#         6.7 gamLoess                                  #
+#########################################################
+
+# Formula for the gamLoess model on transformed target :
+formula <- Cost_claims_year ~
+  Date_last_renewal + 
+  R_Claims_history +
+  Driving_age
+
+# Using similar method as for the PR log10, we found that the optimal offset for gamLoess is 630 :
+offset <- 630
+
+# prepare training data with log10 transform using offset
+train_log10 <- train_subset %>%
+  mutate(Cost_claims_year = log10(Cost_claims_year + offset)) %>%
+  select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
+
+# fit model
+model <- train(formula, method = "gamLoess", data = train_log10)
+
+# predict on validation (predictions are on log10 scale)
+y_hat_log <- predict(model, valid_subset, type = "raw")
+
+# invert transform
+y_hat <- 10^as.numeric(y_hat_log) - offset
+
+# Adjust gamloess values based on the variations :
+y_hat <- valid_subset %>%
+  left_join(status_summary, by = "Status") %>%
+  mutate(gamloess = y_hat + abs(y_hat) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  left_join(value_summary, by = "val_vehicle") %>%
+  mutate(gamloess = gamloess + abs(gamloess) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  pull(gamloess)
+
+# floor negatives
+y_hat <- pmax(y_hat, 0)
+
+# Update the results table :
+results <- update_results(valid_subset, y_hat, "gamLoess")
+results
+
+# Update the valid_subset with the predictions :
+valid_subset <- valid_subset %>%
+  mutate(gamLoess = y_hat)
+
+#########################################################
 #         6.7 Plots                                     #
 #########################################################
 
 # Calculate weekly summary data :
 weekly_summary <- valid_subset %>%
-  select(Date_last_renewal, Cost_claims_year, lm_1, lm_3, lm_14, dnn, lm_pr) %>%
+  select(Date_last_renewal, Cost_claims_year, pred_avg, lm_1, lm_3, lm_14, dnn, lm_pr, lm_pr_adj) %>%
   mutate(Date_last_renewal = as.Date(Date_last_renewal, origin = "1970-01-01"), # Adjust origin if necessary
          Week = floor_date(Date_last_renewal, unit = "week")) %>%
   group_by(Week) %>%
   summarize(
     Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
+    Total_pred_avg = sum(pred_avg, na.rm = TRUE),
     Total_lm_1 = sum(lm_1, na.rm = TRUE),
     Total_lm_3 = sum(lm_3, na.rm = TRUE),
     Total_lm_14 = sum(lm_14, na.rm = TRUE),
     Total_dnn = sum(dnn, na.rm = TRUE),
-    Total_lm_pr = sum(lm_pr, na.rm = TRUE)
+    Total_lm_pr = sum(lm_pr, na.rm = TRUE),
+    Total_lm_pr_adj = sum(lm_pr_adj, na.rm = TRUE)
   )
 
 # Plot the weekly summary :
 weekly_summary_plot <- weekly_summary %>%
   ggplot(aes(x = Week)) +
-  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 1) +
-  geom_line(aes(y = Total_lm_1, color = "Linear Model 1"), size = 1) +
-#  geom_line(aes(y = Total_lm_3, color = "Linear Model 3"), size = 1) +
-  geom_line(aes(y = Total_lm_14, color = "Linear Model 14"), size = 1) +
-  geom_line(aes(y = Total_dnn, color = "Deep Neural Network"), size = 1) +
-  geom_line(aes(y = Total_lm_pr, color = "Polynomial Regression"), size = 1) +
+  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 0.5) +
+  #geom_line(aes(y = Total_pred_avg, color = "Average"), size = 0.5) +
+  geom_line(aes(y = Total_lm_1, color = "Linear Model 1"), size = 0.5) +
+  # geom_line(aes(y = Total_lm_3, color = "Linear Model 3"), size = 0.5) +
+  geom_line(aes(y = Total_lm_14, color = "Linear Model 14"), size = 0.5) +
+  #geom_line(aes(y = Total_dnn, color = "Deep Neural Network"), size = 0.5) +
+  geom_line(aes(y = Total_lm_pr, color = "Polynomial Regression"), size = 0.5) +
+  geom_line(aes(y = Total_lm_pr_adj, color = "PR log10"), size = 0.5) +
   labs(x = "Week", y = "Values") +
+  scale_y_continuous(labels = comma) +
   scale_color_manual(name = "Legend", 
                      values = c("Cost" = "darkgrey",
+                                "Average" = "black",
                                 "Linear Model 1" = "darkblue",
-#                                "Linear Model 3" = "darkorange",
+                                "Linear Model 3" = "lightblue",
                                 "Linear Model 14" = "darkgreen",
-                                "Deep Neural Network" = "darkorange",
-                                "Polynomial Regression" = "darkred"
+                                "Deep Neural Network" = "darkcyan",
+                                "Polynomial Regression" = "darkred",
+                                "PR log10" = "darkorange"
                      )) +
   theme_minimal() +
   theme(text = element_text(size = 9), legend.position = "top") +
@@ -1665,12 +2014,14 @@ weekly_summary_plot
 # Reshape data for ggplot using pivot_longer
 data_long <- valid_subset %>%
   mutate(
+    err_pred_avg = pred_avg - Cost_claims_year,
     err_lm_1 = lm_1 - Cost_claims_year,
     err_lm_3 = lm_3 - Cost_claims_year,
     err_lm_14 = lm_14 - Cost_claims_year,
-    err_lm_pr = lm_pr - Cost_claims_year
+    err_lm_pr = lm_pr - Cost_claims_year,
+    err_lm_pr_adj = lm_pr_adj - Cost_claims_year
   ) %>%
-  select(err_lm_1, err_lm_3, err_lm_14, err_lm_pr) %>%
+  select(err_pred_avg, err_lm_1, err_lm_3, err_lm_14, err_lm_pr, err_lm_pr_adj) %>%
   pivot_longer(cols = everything(),
                names_to = "Variable",
                values_to = "Value")
@@ -1690,170 +2041,52 @@ ggplot(data_long, aes(x = Value)) +
 stop("Stopping the script.")
 
 #########################################################
-#         6.6 Deep Neural Network                       #
+#         7.0 Final Test                                #
 #########################################################
 
-str(valid_subset)
-valid_subset <- valid_subset %>%
-  mutate(pred = Cost_claims_year - lm_pr)
+model
 
-# Predict the values :
-y_hat <- predict(train, train_subset, type = "raw")
-train_subset <- train_subset %>%
-  mutate(pred = Cost_claims_year - y_hat)
+#########################################################
+#         Create the PDF report                         #
+#########################################################
 
-#valid_subset %>% select(Cost_claims_year, pred)
+rmarkdown::render("CarInsuranceReport.Rmd")
 
-# We create 2 data frames for the deep neural network algorithm
-# to convert dates to numeric and normalise values :
-train_subset_dnn <- train_subset %>%
-  #  filter(Cost_claims_year <= 882) %>%
-  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
-         Date_start_contract = as.numeric(Date_start_contract)) %>%
-  mutate_if(is.factor, ~ as.numeric(.)) %>%
-  #  mutate(across(where(is.numeric), z_normalize)) %>%
-  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
-valid_subset_dnn <- valid_subset %>%
-  mutate(Date_last_renewal = as.numeric(Date_last_renewal),
-         Date_start_contract = as.numeric(Date_start_contract)) %>%
-  mutate_if(is.factor, ~ as.numeric(.)) %>%
-  #  mutate(across(where(is.numeric), z_normalize)) %>%
-  mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
-#str(train_subset)
-str(train_subset_dnn)
-str(valid_subset_dnn)
-
-# Get the column names from train_subset
-all_predictors <- colnames(train_subset)
-
-# Exclude the specific columns
-desired_predictors <- all_predictors[!all_predictors %in% c("Cost_claims_year",
-                                                            "ID",
-                                                            "Lapse",
-                                                            "Claim",
-                                                            "pred",
-                                                            "Date_last_renewal",
-                                                            "R_Claims_history",
-                                                            "Driving_age")]
-
-# Create the formula
-formula <- as.formula(paste("pred ~", paste(desired_predictors, collapse = " + ")))
-formula
-
-# Set the seed so we get the same results each time:
-set.seed(123)
-
-# Build the neural network model
-neural_network_model <- neuralnet(
-  formula,
-  data = train_subset_dnn,
-  hidden = c(9, 8, 6, 5, 4, 3, 2, 1),
-  linear.output = TRUE
-  #  threshold = 0.01,
-  #  rep = 5
-)
-
-# Make predictions on the validation set :
-y_hat <- predict(neural_network_model, valid_subset_dnn)
-
-# Inverse normalisation for the predictions
-y_hat <- y_hat * (max(train_subset$Cost_claims_year) - min(train_subset$Cost_claims_year)) + min(train_subset$Cost_claims_year)
-y_hat
-valid_subset$pred
-
-min(train_subset$pred)
-max(train_subset$pred)
-mean(train_subset$pred)
-
-min(valid_subset$pred)
-max(valid_subset$pred)
-mean(valid_subset$pred)
-
-min(y_hat)
-max(y_hat)
-mean(y_hat)
-
-valid_subset <- valid_subset %>%
-  mutate(pred_final = lm_pr + y_hat)
-
-RMSE(valid_subset$Cost_claims_year, valid_subset$pred_final)
+#########################################################
+#         End of the script                             #
+#########################################################
 
 # Exit the script
 stop("Stopping the script.")
 
-#########################################################
-#         6.6 Polynomial Regression                     #
-#########################################################
 
-# Polynomial regression using three predictors. Degrees chosen
-# by prior tuning: Date_last_renewal (degree 4), R_Claims_history
-# (degree 9) and Driving_age (degree 8). The target is heavily
-# zero-inflated, so we apply a log10(offset + target) transform
-# during training and invert it for predictions.
 
-# Formula for the linear model on transformed target :
-formula <- Cost_claims_year ~
-  poly(Date_last_renewal, 4) + 
-  poly(R_Claims_history, 9) +
-  poly(Driving_age, 8)
 
-offsets <- seq(1000, 60000, by = 2000)
 
-pr_sweep_offsets <- function(offset) {
-  # prepare training data with log10 transform using offset
-  train_log10 <- train_subset %>%
-    mutate(Cost_claims_year = log10(Cost_claims_year + offset))
-  
-  # fit model (lm via caret::train as in your original code)
-  model <- train(formula, method = "lm", data = train_log10)
-  
-  # predict on validation (predictions are on log10 scale)
-  y_hat_log <- predict(model, valid_subset, type = "raw")
-  
-  # invert transform and floor negatives
-  y_hat <- 10^as.numeric(y_hat_log) - offset
-  y_hat <- pmax(y_hat, 0)
+
+# Create polynomial features (e.g., a quadratic polynomial)
+create_polynomial_features <- function(data, degree) {
+  poly_terms <- sapply(1:degree, function(d) data$x^d)  # Assuming 'x' is your feature
+  colnames(poly_terms) <- paste0("x", 1:degree)
+  return(as.data.frame(poly_terms))
 }
 
-preds_offsets <- sapply(offsets, pr_sweep_offsets)
+# Example of using biglm
+library(biglm)
 
-# Create a data frame to store offsets and RMSE values
-metrics_df <- data.frame(offset = offsets,
-                         rmse = NA,
-                         error = NA,
-                         accuracy = NA)
+# Initial fitting
+initial_data <- data.frame(x = 1:100, y = 3 + 2 * (1:100) + rnorm(100))
+poly_features <- create_polynomial_features(initial_data, 2)
+model_0 <- biglm(y ~ ., data = cbind(initial_data, poly_features))
 
-# Compute RMSE for each offset using res_pr
-for (i in seq_along(offsets)) {
-  # Get predictions for the current offset
-  current_predictions <- preds_offsets[, i]
-  
-  # Calculate Metrics (RMSE, Relative Error and Accuracy) :
-  metrics_df$rmse[i] <- RMSE(valid_subset$Cost_claims_year, current_predictions)
-  metrics_df$error[i] <- get_error(sum(valid_subset$Cost_claims_year), sum(current_predictions))
-  metrics_df$accuracy[i] <- get_accuracy(valid_subset$Cost_claims_year, current_predictions)
+# Incremental update example
+incremental_update <- function(new_data, model) {
+  new_poly_features <- create_polynomial_features(new_data, 2)
+  combined_data <- rbind(model.frame(model), cbind(new_data, new_poly_features))
+  updated_model <- biglm(y ~ ., data = combined_data)
+  return(updated_model)
 }
 
-# Plot RMSE vs offset :
-ggplot(metrics_df, aes(x = offset, y = rmse)) +
-  geom_line(color = "darkblue", size = 1) +
-  geom_point(color = "darkblue", size = 2) +
-  labs(x = "Offset", y = "RMSE", title = "RMSE vs Offset") +
-  theme_minimal()
-
-# Plot relative error vs offset :
-ggplot(metrics_df, aes(x = offset, y = error)) +
-  geom_line(color = "darkred", size = 1) +
-  geom_point(color = "darkred", size = 2) +
-  labs(x = "Offset", y = "Error", title = "Error vs Offset") +
-  theme_minimal()
-
-# Plot accuracy vs offset :
-ggplot(metrics_df, aes(x = offset, y = accuracy)) +
-  geom_line(color = "darkgreen", size = 1) +
-  geom_point(color = "darkgreen", size = 2) +
-  labs(x = "Offset", y = "Accuracy", title = "Accuracy vs Offset") +
-  theme_minimal()
-
-
-#
+# New data
+new_data <- data.frame(x = 101:150, y = 3 + 2 * (101:150) + rnorm(50))
+model_1 <- incremental_update(new_data, model_0)

@@ -43,7 +43,7 @@ knitr::opts_chunk$set(echo = TRUE)
 \begin{center}
 \vspace*{\fill}
 
-\includegraphics[width=0.2\textwidth]{carinsurancereport-cover.png}
+\includegraphics[width=0.2\textwidth]{images/carinsurancereport-cover.png}
 
 \vspace*{\fill}
 \end{center}
@@ -117,9 +117,9 @@ The dataset is organized as three different files : a spreadsheet and two comma-
 ```{r, echo=FALSE}
 dataset_files <- data.frame(
   icons = c(
-    "\\includegraphics[width=0.5cm]{file-excel.png}",
-    "\\includegraphics[width=0.5cm]{file-csv.png}",
-    "\\includegraphics[width=0.5cm]{file-csv.png}"
+    "\\includegraphics[width=0.5cm]{images/file-excel.png}",
+    "\\includegraphics[width=0.5cm]{images/file-csv.png}",
+    "\\includegraphics[width=0.5cm]{images/file-csv.png}"
   ),
   filename = c(
     "Descriptive of the variables.xlsx",
@@ -541,7 +541,17 @@ In contrast, Cost_claims_year is positively correlated with N_claims_year at 0.1
 
 ### 5.3.1 Timeline
 
-We saw earlier that the yearly cost is somewhat related to the number of claims submitted during the year, and that it also dicreases everery year. Let's see the monthly trend for the number of policies (renewal), cost and number of claims :
+The graph below depicts the cumulative cost percentages across the years. The horizontal axis indicates costs, ranging from 0 to 2000, with values above this limit excluded for clarity. The vertical axis represents the cumulative percentage, covering a range from 50% to 100%.
+
+```{r, echo=FALSE, fig.align="center", fig.cap = "Percentage of Policies per Cost and per Year", fig.width=4, fig.height=3}
+yearly_costs
+```
+
+The data reveals that the percentage of claims below a specific cost rises over the years, with no claims registered below 50 euros. Additionally, there is a notable spike in percentage at 850 euros.
+
+Notably, in 2018, 90% of the policies incurred no costs.
+
+Earlier, we observed that the annual cost is somewhat correlated with the number of claims submitted each year, and it decreases annually. Now, let’s examine the monthly trends for policy renewals, costs, and the number of claims :
 
 ```{r, echo=FALSE, fig.align="center", fig.cap = "Total Policies, Claims and Cost per Month", fig.width=6, fig.height=2}
 plot_grid(
@@ -1032,10 +1042,10 @@ Output Layer : The final layer produces the prediction, such as the expected ins
 
 **Schema of a Deep Neural Network**
 
-Here's a simple schema illustrating a DNN where each neuron is represented by a circle, each synapse by an arrow, and the neurons of the input layers are in red, while the (only) neuron of the output layer is in green :
+Here’s a straightforward diagram showcasing a Deep Neural Network. In this illustration, each neuron is depicted as a circle and each synapse as an arrow. The neurons in the input layer are coloured red, while the single neuron in the output layer is coloured green :
 
 ```{r, echo=FALSE, message=FALSE, out.width='50%', fig.align="center", fig.cap = "Example of a Deep Neural Network"}
-knitr::include_graphics("deep-neural-network.png")
+knitr::include_graphics("images/deep-neural-network.png")
 ```
 
 \newpage
@@ -1045,7 +1055,7 @@ knitr::include_graphics("deep-neural-network.png")
 Forward Propagation : Data flows from the input layer through the hidden layers to the output layer, generating predictions :
 
 ```{r, echo=FALSE, message=FALSE, out.width='50%', fig.align="center", fig.cap = "Example of a Deep Neural Network"}
-knitr::include_graphics("neuron.png")
+knitr::include_graphics("images/neuron.png")
 ```
 
 In our work, we will use the sigmoid function to calculate the output \( y \) based on the inputs \( x_i \), weights \( w_i \) and a bias \( b \) :
@@ -1054,10 +1064,35 @@ In our work, we will use the sigmoid function to calculate the output \( y \) ba
 y = f(\sum_{i=1}^{N} w_i * x_i + b)
 \]
 
-where
+where \( f \) is defined as :
+
 \[
 f(z) = \dfrac{1}{1 + e^{-z}}
 \]
+
+```{r, echo=FALSE, out.width='50%', fig.align="center", fig.cap = "Sigmoid function"}
+library(ggplot2)
+
+# Define the sigmoid function
+sigmoid <- function(x) {
+  1 / (1 + exp(-x))
+}
+
+# Generate a sequence of values
+x_values <- seq(-10, 10, by = 0.1)
+y_values <- sigmoid(x_values)
+
+# Create a data frame for plotting
+sigmoid_data <- data.frame(x = x_values, y = y_values)
+
+# Plot the sigmoid function
+ggplot(sigmoid_data, aes(x = x, y = y)) +
+  geom_line(color = "darkblue", size = 1) +
+  labs(x = "Input", y = "Sigmoid Output") +
+  theme_minimal() +
+  xlim(-10, 10) +
+  ylim(0, 1)
+```
 
 Loss Calculation : The predictions are compared to the actual outcomes to compute a loss value, representing the prediction error.
 
@@ -1086,7 +1121,7 @@ The DNN exhibits an RMSE of 516, placing it among the higher RMSE values when co
 
 One of the most concerning aspects is the error metric, which stands at an alarming 2521015 (384% of the expected cost). This high error indicates a significant deviation between the predicted and actual costs, demonstrating that the model is not accurately estimating the insurance costs.
 
-In contrast to simpler models, such as linear and polynomial regression, the DNN fails to demonstrate superior predictive accuracy.
+In contrast to simpler models, such as linear regression, the DNN fails to demonstrate superior predictive accuracy.
 
 \newpage
 
@@ -1094,9 +1129,14 @@ In contrast to simpler models, such as linear and polynomial regression, the DNN
 
 Polynomial regression is a statistical technique that extends linear regression by allowing for a non-linear relationship between the independent and dependent variables. Instead of fitting a straight line to the data, polynomial regression fits a polynomial equation, which can be of varying degrees based on the complexity needed to describe the relationship. For instance, a second-degree polynomial regression creates a parabolic curve, while higher degrees can produce more complex shapes.
 
-This technique is particularly useful for modeling data when the relationship between variables is not adequately captured by a straight line, enabling better predictions and insights. Polynomial regression incorporates powers of the independent variable(s) (e.g., x^2, x^3) into the model, which allows for bending the curve to fit the data more accurately.
+This technique is particularly useful for modelling data when the relationship between variables is not adequately captured by a straight line, enabling better predictions and insights. Polynomial regression incorporates powers of the independent variable(s) (e.g., \( x^2 \), \( x^3 \)) into the model, which allows for bending the curve to fit the data more accurately.
  
 We can further improve our model by using a Polynomial Regression to predict the costs :
+
+\[
+f_hat(x) = b_0 * Date_last_renewal^4 + b_1 * R_Claims_history^9 + b_2 * Driving_age^8
+\]
+
 
 ```{r, eval=FALSE}
 # Use 3 predictors Date_last_renewal, R_Claims_history and Driving_age :
@@ -1134,17 +1174,110 @@ With an accuracy of 0.153, the model demonstrates moderate performance. While th
 
 \newpage
 
-## 6.6 Plots
+## 6.6 Improvements
 
-```{r, echo=FALSE, fig.align="center", fig.cap = "Total Cost per Week", fig.height=3}
-weekly_summary_plot
+The polynomial regression is based on the 3 variables Date_last_renewal, R_Claims_history and Driving_age. We saw earlier that other variables have an impact on the cost. For example, the status (new or ongoing renewal) has some effect on the cost (this table is a summary of costs for 2018) :
+
+```{r, echo=FALSE}
+variables <- status_summary %>%
+  mutate(
+    Status = recode(Status, `0` = "Ongoing", `1` = "New"),
+    Average_Cost = round(Average_Cost, 2),
+    Variation = round(Variation, 3)
+  )
+kbl(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position"))
+```
+
+If we take into consideration the Status and the Value_vehicle variables, we get the following model :
+
+```{r, eval=FALSE}
+# Adjust lm_pr values based on the variations :
+valid_subset <- valid_subset %>%
+  left_join(status_summary, by = "Status") %>%
+  mutate(lm_pr_adj = lm_pr + abs(lm_pr) * Variation) %>%
+  select(-Average_Cost, -Variation) %>%
+  left_join(value_summary, by = "val_vehicle") %>%
+  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
+  select(-Average_Cost, -Variation)
+```
+
+Incorporating the biases to our model doesn't change the relative error, but increase the RMSE and the Accuracy :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (14 Variables)",
+                             "Deep Neural Network",
+                             "Polynomial Regression",
+                             "PR with Biases"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The RMSE rose from 470 to 476, while the relative error remained within 1% of the target. Notably, the accuracy improved significantly from 15% to 24.6%.
+
+We can further improve our model by applying a log10 transformation of the costs before running our model. As we have costs with zero values, we will need to add an offset to the cost before applying the log10 transformation :
+
+```{r, eval=FALSE}
+# prepare training data with log10 transform using offset :
+train_log10 <- train_subset %>%
+  mutate(Cost_claims_year = log10(Cost_claims_year + offset))
+
+# fit model (lm via caret::train)
+model <- train(formula, method = "lm", data = train_log10)
+
+# predict on validation (predictions are on log10 scale)
+y_hat_log <- predict(model, valid_subset, type = "raw")
+
+# invert transform
+y_hat <- 10^as.numeric(y_hat_log) - offset
 ```
 
 \newpage
 
-## 6.7 Improvements
+We then adjust the predicted values based on the variations as described previously. And we remove the negative predictions :
 
-We can further improve our model by remove negative predictions and at the same time trying to keep the same total cost. We can also try to use the best predictions from each model.
+```{r, eval=FALSE}
+# floor negatives
+valid_subset$lm_pr_adj <- pmax(valid_subset$lm_pr_adj, 0)
+```
+
+We can calculate the RMSE, relative error and accuracy of the predictions for each offset. We will try for all offset values between 1000 and 60000, and for low values we will also try 0.001, 0.01, 0.1, 1, 10, 100 :
+
+```{r, echo=FALSE, out.width='100%', fig.align="center", fig.cap = "Offset for log10 transformation", fig.height=5}
+offset_results_plot
+```
+
+As we can see the RMSE increases with the offset, with a decrease at low values. The relative error increases to be close to zero when the offset is about 50,000. The accuracy decreases with the offset.
+
+\newpage
+
+If we want to get the relative error under the 1% value, and at the same time keep the lowest RMSE and the highest accuracy, we need to take an offset of approximately 47,000. The results will then be :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (14 Variables)",
+                             "Deep Neural Network",
+                             "Polynomial Regression",
+                             "PR with Biases",
+                             "PR + log10 transformation"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The "PR + log10 transformation" method not only minimizes the RMSE to 470.66, signifying precision in predictions, but also achieves a low relative error close to zero, indicating that the model's predictions are nearly perfect, with minimal deviation from true values. Furthermore, the accuracy of 0.491 indicates that a significant proportion of the model's predictions are correct, demonstrating robust performance in estimating costs. This model stands out as the most reliable approach among those tested, providing confidence in its ability to deliver accurate cost estimations while effectively handling potential variability in the data.
+
+The graph below visually conveys how each model's cost predictions evolve over time :
+
+```{r, echo=FALSE, out.width='100%', fig.align="center", fig.cap = "Total Cost per Week", fig.height=3}
+weekly_summary_plot
+```
 
 \newpage
 
