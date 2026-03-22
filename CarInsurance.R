@@ -20,6 +20,7 @@ library(caret)
 library(neuralnet)
 library(randomForest)
 library(gam)
+library(biglm)
 
 #########################################################
 #         3. Dataset                                    #
@@ -1714,14 +1715,23 @@ valid_subset$val_vehicle <- ifelse(
   valid_subset$val_vehicle
 )
 
+# apply_variation: join preds to data by key,
+# adjust preds by the matched Variation (0 if missing),
+# and return adjusted vector
+apply_variation <- function(data, preds, key, summary_df) {
+  data %>%
+    select(all_of(key)) %>%
+    bind_cols(pred = preds) %>%
+    left_join(summary_df, by = key) %>%
+    mutate(pred = pred + abs(pred) * coalesce(Variation, 0)) %>%
+    pull(pred)
+}
+
 # Adjust lm_pr values based on the variations :
+y_hat <- apply_variation(valid_subset, valid_subset$lm_pr, "Status", status_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 valid_subset <- valid_subset %>%
-  left_join(status_summary, by = "Status") %>%
-  mutate(lm_pr_adj = lm_pr + abs(lm_pr) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  left_join(value_summary, by = "val_vehicle") %>%
-  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
-  select(-Average_Cost, -Variation)
+  mutate(lm_pr_adj = y_hat)
 
 # Update the results table :
 results <- update_results(valid_subset, valid_subset$lm_pr_adj, "PR with Biases")
@@ -1739,9 +1749,9 @@ results
 
 # Formula for the linear model on transformed target :
 formula <- Cost_claims_year ~
-  poly(Date_last_renewal, 4) + 
-  poly(R_Claims_history, 9) +
-  poly(Driving_age, 8)
+  poly(Date_last_renewal, 4, raw = TRUE) + 
+  poly(R_Claims_history, 9, raw = TRUE) +
+  poly(Driving_age, 8, raw = TRUE)
   
 # Define the offsets :
 #offsets <- seq(1000, 60000, by = 2000)
@@ -1757,7 +1767,8 @@ pr_sweep_offsets <- function(offset) {
     select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
   
   # fit model (lm via caret::train as in your original code)
-  model <- train(formula, method = "lm", data = train_log10)
+  #model <- train(formula, method = "lm", data = train_log10)
+  model <- biglm(formula, data = train_log10)
 
   # Return the fitted model
   return(model)
@@ -1797,16 +1808,8 @@ for (i in seq_along(offsets)) {
   y_hat <- 10^as.numeric(y_hat_log) - offsets[i]
   
   # Adjust lm_pr values based on the variations :
-  #valid_subset <- valid_subset %>%
-  #  mutate(lm_pr_adj = y_hat)
-  y_hat <- valid_subset %>%
-    left_join(status_summary, by = "Status") %>%
-    mutate(lm_pr_adj = y_hat + abs(y_hat) * Variation) %>%
-    select(-Average_Cost, -Variation) %>%
-    left_join(value_summary, by = "val_vehicle") %>%
-    mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
-    select(-Average_Cost, -Variation) %>%
-    pull(lm_pr_adj)
+  y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
+  y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 
   # floor negatives
   y_hat <- pmax(y_hat, 0)
@@ -1891,14 +1894,8 @@ y_hat_log <- predict(model, valid_subset, type = "raw")
 y_hat <- 10^as.numeric(y_hat_log) - offset_value
 
 # Adjust lm_pr values based on the variations :
-y_hat <- valid_subset %>%
-  left_join(status_summary, by = "Status") %>%
-  mutate(lm_pr_adj = y_hat + abs(y_hat) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  left_join(value_summary, by = "val_vehicle") %>%
-  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  pull(lm_pr_adj)
+y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 
 # floor negatives
 y_hat <- pmax(y_hat, 0)
@@ -1912,7 +1909,7 @@ valid_subset <- valid_subset %>%
   mutate(lm_pr_adj = y_hat)
 
 # Exit the script
-stop("Stopping the script.")
+#stop("Stopping the script.")
 
 #########################################################
 #         6.7 gamLoess                                  #
@@ -1942,14 +1939,8 @@ y_hat_log <- predict(model, valid_subset, type = "raw")
 y_hat <- 10^as.numeric(y_hat_log) - offset
 
 # Adjust gamloess values based on the variations :
-y_hat <- valid_subset %>%
-  left_join(status_summary, by = "Status") %>%
-  mutate(gamloess = y_hat + abs(y_hat) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  left_join(value_summary, by = "val_vehicle") %>%
-  mutate(gamloess = gamloess + abs(gamloess) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  pull(gamloess)
+y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 
 # floor negatives
 y_hat <- pmax(y_hat, 0)
@@ -2045,7 +2036,6 @@ stop("Stopping the script.")
 #         7.0 Final Test                                #
 #########################################################
 
-model
 
 #########################################################
 #         Create the PDF report                         #
@@ -2059,35 +2049,3 @@ rmarkdown::render("CarInsuranceReport.Rmd")
 
 # Exit the script
 stop("Stopping the script.")
-
-
-
-
-
-
-# Create polynomial features (e.g., a quadratic polynomial)
-create_polynomial_features <- function(data, degree) {
-  poly_terms <- sapply(1:degree, function(d) data$x^d)  # Assuming 'x' is your feature
-  colnames(poly_terms) <- paste0("x", 1:degree)
-  return(as.data.frame(poly_terms))
-}
-
-# Example of using biglm
-library(biglm)
-
-# Initial fitting
-initial_data <- data.frame(x = 1:100, y = 3 + 2 * (1:100) + rnorm(100))
-poly_features <- create_polynomial_features(initial_data, 2)
-model_0 <- biglm(y ~ ., data = cbind(initial_data, poly_features))
-
-# Incremental update example
-incremental_update <- function(new_data, model) {
-  new_poly_features <- create_polynomial_features(new_data, 2)
-  combined_data <- rbind(model.frame(model), cbind(new_data, new_poly_features))
-  updated_model <- biglm(y ~ ., data = combined_data)
-  return(updated_model)
-}
-
-# New data
-new_data <- data.frame(x = 101:150, y = 3 + 2 * (101:150) + rnorm(50))
-model_1 <- incremental_update(new_data, model_0)
