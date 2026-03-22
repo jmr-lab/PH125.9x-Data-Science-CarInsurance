@@ -2004,6 +2004,8 @@ weekly_summary_plot
 
 # Plot the difference (error) between the prediction and the real cost :
 # Reshape data for ggplot using pivot_longer
+order <- c("err_pred_avg", "err_lm_1", "err_lm_3", "err_lm_14", "err_lm_pr", "err_lm_pr_adj")
+
 data_long <- valid_subset %>%
   mutate(
     err_pred_avg = pred_avg - Cost_claims_year,
@@ -2013,10 +2015,11 @@ data_long <- valid_subset %>%
     err_lm_pr = lm_pr - Cost_claims_year,
     err_lm_pr_adj = lm_pr_adj - Cost_claims_year
   ) %>%
-  select(err_pred_avg, err_lm_1, err_lm_3, err_lm_14, err_lm_pr, err_lm_pr_adj) %>%
+  select(all_of(order)) %>%
   pivot_longer(cols = everything(),
                names_to = "Variable",
-               values_to = "Value")
+               values_to = "Value") %>%
+  mutate(Variable = factor(Variable, levels = order))
 
 # Remove all values above 1000 (absolute value)
 data_long <- data_long %>% filter(Value < 1000, Value > -1000)
@@ -2027,6 +2030,15 @@ ggplot(data_long, aes(x = Value)) +
   facet_wrap(~ Variable, scales = "free") +
   labs(x = "Value", y = "Count") +
   scale_x_continuous(limits = c(-1000, 1000)) +
+  theme_minimal()
+
+# Accuracy
+data_long %>%
+  filter(abs(Value) < 200 & Variable != "err_lm_3") %>%
+  ggplot(aes(x = abs(Value), colour = Variable)) +
+  stat_ecdf(aes(y = ..y.. * 100), geom = "step") +
+  scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0,100)) +
+  labs(x = "Absolute error threshold", y = "Cumulative % ≤ threshold") +
   theme_minimal()
 
 # Exit the script
