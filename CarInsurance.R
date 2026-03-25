@@ -153,8 +153,8 @@ insurance_data <- insurance_data %>%
   select(-N_claims_history, -N_claims_cumulative, -diff_claims_history) %>%
   rename(N_claims_history = N_claims_history_2)
 
-# For the seniority, we first calculate the contract age as the difference in years between Date_last_renewal and Date_start_contract,
-# then we add the difference between Seniority and the max contract age if there is any :
+# For the seniority, we first calculate the contract age as the difference in years between Date_last_renewal
+# and Date_start_contract, then we add the difference between Seniority and the max contract age if there is any :
 insurance_data <- insurance_data %>%
   group_by(ID) %>%
   mutate(Contract_year = round(as.numeric(difftime(Date_last_renewal, Date_start_contract, units = "days")) / 365.25),
@@ -523,7 +523,6 @@ distribution_claims <- ggplot(train_set, aes(x = N_claims_year)) +
   geom_histogram(binwidth = 1, fill = "darkgreen", alpha = 0.8) +
   labs(x = "Nb Claims",
        y = "Frequency") +
-#  scale_y_log10() +
   theme_minimal() +
   theme(text = element_text(size = 9))
 distribution_claims
@@ -558,8 +557,8 @@ plot_grid(
 insurance_data %>%
   filter(!is.na(Length)) %>%
   mutate(
-    Type_fuel = as.character(Type_fuel),  # Convert factor to character
-    Type_fuel = replace_na(Type_fuel, "0"),  # Replace NA in Type_fuel with "0"
+    Type_fuel = as.character(Type_fuel),
+    Type_fuel = replace_na(Type_fuel, "0"),
     Type_fuel = ifelse(Type_fuel == "P", 1, 2)
   ) %>%
   select(Type_fuel, Length, Weight) %>%
@@ -960,8 +959,6 @@ claims_summary <- claims_data %>%
   # Calculate cumulative counts
   group_by(Year) %>%
   mutate(Cumulative_claims = rev(cumsum(rev(Count_claims))),
-#         percentage = Cumulative_claims / lag(Cumulative_claims),
-#         percentage = ifelse(is.na(percentage), 0, percentage * 100),
          percentage = 100 * lead(Cumulative_claims) / Cumulative_claims
   ) %>%
   ungroup() %>%
@@ -1056,7 +1053,6 @@ risk_N_claims_history <- risk_summary %>%
   geom_smooth(method = "loess", size = 1, formula = y ~ x) +
   labs(x = "N_claims_history", y = "Risk(%)") +
   scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) + 
-  #  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
   theme_minimal() +
   theme(text = element_text(size = 9), legend.position = "top")
 
@@ -1072,7 +1068,6 @@ risk_R_Claims_history <- risk_summary %>%
   geom_smooth(method = "loess", size = 1, formula = y ~ x) +
   labs(x = "R_Claims_history", y = "Risk(%)") +
   scale_y_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) + 
-  #  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
   theme_minimal() +
   theme(text = element_text(size = 9), legend.position = "top")
 
@@ -1339,7 +1334,15 @@ tmp_set <- train_set %>%
   select(where(~ !any(is.na(.)))) %>%
   select(-Premium, -N_claims_year, -Year)
 # Convert specified columns to factors
-factor_columns <- c("Distribution_channel", "Policies_in_force", "Payment", "Type_risk", "Area", "Second_driver", "N_doors", "Status", "Claim")
+factor_columns <- c("Distribution_channel",
+                    "Policies_in_force",
+                    "Payment",
+                    "Type_risk",
+                    "Area",
+                    "Second_driver",
+                    "N_doors",
+                    "Status",
+                    "Claim")
 tmp_set[factor_columns] <- sapply(tmp_set[factor_columns], as.factor, simplify = FALSE)
 # Convert Date_last_renewal to numeric
 tmp_set$Date_last_renewal <- as.numeric(as.Date(tmp_set$Date_last_renewal))
@@ -1446,6 +1449,8 @@ y_hat <- rep(zero, nrow(valid_subset))
 results <- update_results(valid_subset, y_hat, "Zero")
 results
 
+# We try something similar with 9.99. It is under the 10 euros difference,
+# and should reduce the relative error (in absolute value) :
 y_hat <- rep(9.99, nrow(valid_subset))
 
 # Update the results table :
@@ -1457,8 +1462,6 @@ results
 #########################################################
 
 # Linear Model with 1 parameter :
-# RMSE = 469.1506
-# Error = 0.651
 train <- train(Cost_claims_year ~ Date_last_renewal, method = "lm", data = train_subset)
 
 # Predict the values :
@@ -1473,8 +1476,6 @@ valid_subset <- valid_subset %>%
   mutate(lm_1 = y_hat)
 
 # Linear Model with 3 parameters :
-# RMSE = 474.2981
-# Error = 0.562
 train <- train(Cost_claims_year ~ Date_last_renewal +
                     R_Claims_history +
                     Second_driver, method = "lm", data = train_subset)
@@ -1491,8 +1492,6 @@ valid_subset <- valid_subset %>%
   mutate(lm_3 = y_hat)
 
 # Linear Model with 14 parameters :
-# RMSE = 474.2981
-# Error = 0.390
 train <- train(Cost_claims_year ~ Date_last_renewal +
                       Cylinder_capacity +
                       Weight +
@@ -1548,9 +1547,9 @@ valid_subset_dnn <- valid_subset %>%
   mutate_if(is.factor, ~ as.numeric(.)) %>%
   #  mutate(across(where(is.numeric), z_normalize)) %>%
   mutate(across(where(is.numeric), ~ ( . - min(.) ) / ( max(.) - min(.) )))
-#str(train_subset)
-str(train_subset_dnn)
-str(valid_subset_dnn)
+
+#str(train_subset_dnn)
+#str(valid_subset_dnn)
 
 # Get the column names from train_subset
 all_predictors <- colnames(train_subset)
@@ -1574,34 +1573,10 @@ neural_network_model <- neuralnet(
   data = train_subset_dnn,
   hidden = c(9, 8, 6, 5, 4, 3, 2, 1),
   linear.output = TRUE
-  #  threshold = 0.01,
-  #  rep = 5
 )
 
 # Plot the model :
 plot(neural_network_model, rep = "best")
-
-# Plot with adjusted parameters
-plot(neural_network_model, 
-     rep = "best",               # Use the best net if there are multiple
-     maxsize = 6,              # Max size of nodes
-     cex = 0.5)                # Size of text
-
-# Save as PNG with a larger size
-#png("neural_network_plot.png", width = 1200, height = 800)
-#plot(neural_network_model, max.size = 10) # Adjust max.size if necessary
-#dev.off()
-
-# Create a PNG file with a larger size
-#png("neural_network_plot.png", width = 1200, height = 800)
-
-# Save as PDF
-#pdf("neural_network_plot.pdf", width = 12, height = 8)
-#plot(neural_network_model, 
-#     rep = "best", 
-#     maxsize = 10, 
-#     cex = 0.75)
-#dev.off() # Close the device
 
 # Make predictions on the validation set :
 y_hat <- predict(neural_network_model, valid_subset_dnn)
@@ -1627,6 +1602,7 @@ formula <- Cost_claims_year ~
   poly(R_Claims_history, 9) +
   poly(Driving_age, 8)
 
+# Train the model :
 train <- train(formula, method = "lm", data = train_subset)
 
 # Predict the values :
@@ -1639,10 +1615,6 @@ results
 # Update the valid_subset with the predictions :
 valid_subset <- valid_subset %>%
   mutate(lm_pr = y_hat)
-
-# Replace values in lm_pr below the threshold with 0
-#mean(valid_subset$lm_pr < 0)
-#modified_lm_pr <- ifelse(valid_subset$lm_pr < threshold, 0, valid_subset$lm_pr)
 
 #########################################################
 #         6.6 Biases                                    #
@@ -1743,6 +1715,7 @@ y_hat <- apply_variation(valid_subset, valid_subset$lm_pr, "Status", status_summ
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
+# Update the valid_subset with the predictions :
 valid_subset <- valid_subset %>%
   mutate(lm_pr_adj = y_hat)
 
@@ -1767,12 +1740,6 @@ formula <- Cost_claims_year ~
   poly(Driving_age, 7, raw = TRUE)
 
 # Define the offsets :
-#offsets <- seq(1000, 60000, by = 2000)
-#offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100, 2500),
-#             seq(1000, 27000, by = 2000),
-#             seq(27000, 29000, by = 100),
-#             seq(29000, 60000, by = 5000))
-#offsets <- seq(46000, 48000, by = 100)
 offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100),
              seq(1000, 60000, by = 1000))
 
@@ -1782,7 +1749,7 @@ pr_sweep_offsets <- function(offset) {
     mutate(Cost_claims_year = log10(Cost_claims_year + offset)) %>%
     select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
   
-  # fit model, using biglm is much faster :
+  # Fit model, using biglm is much faster :
   #model <- train(formula, method = "lm", data = train_log10)
   model <- biglm(formula, data = train_log10)
 
@@ -1812,23 +1779,23 @@ metrics_df <- data.frame(offset = offsets,
                          error = NA,
                          accuracy = NA)
 
-# Compute RMSE for each offset using res_pr
+# Compute RMSE for each offset
 for (i in seq_along(offsets)) {
   # Get model for the current offset
   model <- model_offsets[[i]]
 
-  # predict on validation (predictions are on log10 scale)
+  # Predict on validation (predictions are on log10 scale)
   y_hat_log <- predict(model, valid_subset, type = "raw")
   
-  # invert transform
+  # Invert transform
   y_hat <- 10^as.numeric(y_hat_log) - offsets[i]
 
-  # Adjust lm_pr values based on the variations :
+  # Adjust prediction values based on the variations :
   y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
   y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
   y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
-  # floor negatives
+  # Floor negatives
   y_hat <- pmax(y_hat, 0)
 
   # Calculate Metrics (RMSE, Relative Error and Accuracy) :
@@ -1845,15 +1812,8 @@ for (i in seq_along(offsets)) {
 # Set the 20% threshold :
 threshold <- 0.20
 
-#i <- which.min(metrics_df$rmse)
-#offset_value <- offsets[i]
-#offset_value
-#print(metrics_df$rmse[i])
-#print(metrics_df$error[i])
-#print(metrics_df$accuracy[i])
-
 # Find the index of the first error that is less than 1%
-i <- which(abs(metrics_df$error) < threshold)[1]  # Use [1] to get the first occurrence
+i <- which(abs(metrics_df$error) < threshold)[1]
 
 # Check if the index exists
 if (!is.na(i)) {
@@ -1883,7 +1843,6 @@ offset_results_plot <- plot_grid(
   # Plot RMSE vs offset :
   ggplot(metrics_df, aes(x = offset, y = rmse)) +
     geom_line(color = "darkblue", size = 0.5) +
-#    geom_point(color = "darkblue", size = 2) +
     labs(x = "Offset", y = "RMSE") +
     theme_minimal() +
     theme(text = element_text(size = 9)),
@@ -1891,7 +1850,6 @@ offset_results_plot <- plot_grid(
   # Plot relative error vs offset :
   ggplot(metrics_df, aes(x = offset, y = error)) +
     geom_line(color = "darkred", size = 0.5) +
-#    geom_point(color = "darkred", size = 2) +
     labs(x = "Offset", y = "Error") +
     scale_y_continuous(breaks = seq(-1, 0.1, by = 0.1)) +
     theme_minimal() +
@@ -1900,7 +1858,6 @@ offset_results_plot <- plot_grid(
   # Plot accuracy vs offset :
   ggplot(metrics_df, aes(x = offset, y = accuracy)) +
     geom_line(color = "darkgreen", size = 0.5) +
-#    geom_point(color = "darkgreen", size = 2) +
     labs(x = "Offset", y = "Accuracy") +
     theme_minimal() +
     theme(text = element_text(size = 9)),
@@ -1911,12 +1868,11 @@ offset_results_plot
 
 # Get best model for offset :
 model_pr <- model_offsets[[as.character(offset_value)]]
-#model_pr <- model_offsets[["5000"]]
 
 # predict on validation (predictions are on log10 scale)
 y_hat_log <- predict(model_pr, valid_subset, type = "raw")
 
-# invert transform
+# Invert transform
 y_hat <- 10^as.numeric(y_hat_log) - offset_value
 
 # Adjust lm_pr values based on the variations :
@@ -1924,7 +1880,7 @@ y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
-# floor negatives
+# Floor negatives
 y_hat <- pmax(y_hat, 0)
 
 # Update the results table :
@@ -1934,9 +1890,6 @@ results
 # Update the valid_subset with the predictions :
 valid_subset <- valid_subset %>%
   mutate(lm_pr_adj = y_hat)
-
-# Exit the script
-#stop("Stopping the script.")
 
 #########################################################
 #         6.7 gamLoess                                  #
@@ -1948,21 +1901,21 @@ formula <- Cost_claims_year ~
   R_Claims_history +
   Driving_age
 
-# Using similar method as for the PR log10, we found that the optimal offset for gamLoess is 549 :
-offset <- 549
+# Using similar method as for the PR log10, we found that the optimal offset for gamLoess is 300 :
+offset <- 300
 
-# prepare training data with log10 transform using offset
+# Prepare training data with log10 transform using offset
 train_log10 <- train_subset %>%
   mutate(Cost_claims_year = log10(Cost_claims_year + offset)) %>%
   select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
 
-# fit model
+# Fit model
 model_loess <- train(formula, method = "gamLoess", data = train_log10)
 
-# predict on validation (predictions are on log10 scale)
+# Predict on validation (predictions are on log10 scale)
 y_hat_log <- predict(model_loess, valid_subset, type = "raw")
 
-# invert transform
+# Invert transform
 y_hat <- 10^as.numeric(y_hat_log) - offset
 
 # Adjust gamloess values based on the variations :
@@ -1970,7 +1923,7 @@ y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
-# floor negatives
+# Floor negatives
 y_hat <- pmax(y_hat, 0)
 
 # Update the results table :
@@ -2079,9 +2032,6 @@ accuracy_summary_plot <- data_long %>%
   guides(fill = guide_legend(label.theme = element_text(size = 10), nrow=2, byrow=TRUE))
 accuracy_summary_plot
 
-# Exit the script
-#stop("Stopping the script.")
-
 #########################################################
 #         7.0 Final Test                                #
 #########################################################
@@ -2108,7 +2058,7 @@ test_set$Date_last_renewal <- as.numeric(as.Date(test_set$Date_last_renewal))
 # And we run the final test :
 y_hat_log <- predict(model_pr, test_set, type = "raw")
 
-# invert transform
+# Invert transform
 y_hat <- 10^as.numeric(y_hat_log) - offset_value
 
 # Adjust prediction values based on the variations :
@@ -2116,7 +2066,7 @@ y_hat <- apply_variation(test_set, y_hat, "Status", status_summary)
 y_hat <- apply_variation(test_set, y_hat, "val_vehicle", value_summary)
 y_hat <- apply_variation(test_set, y_hat, "Type_risk", type_summary)
 
-# floor negatives
+# Floor negatives
 y_hat <- pmax(y_hat, 0)
 
 # Update the results table :
@@ -2137,6 +2087,7 @@ test_set_weekly_summary <- test_set_summary %>%
     Total_pred = sum(pred, na.rm = TRUE)
   )
 test_set_weekly_summary
+
 # Accuracy
 test_accuracy_summary_plot <- test_set_summary %>%
   ggplot(aes(x = abs(Cost_claims_year - pred))) +
