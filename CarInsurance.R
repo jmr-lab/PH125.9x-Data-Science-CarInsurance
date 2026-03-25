@@ -1621,9 +1621,7 @@ valid_subset <- valid_subset %>%
 #         6.5 Polynomial Regression                     #
 #########################################################
 
-# Linear Model with 1 parameter and polynomial regression :
-# RMSE = 474.2981
-# Error = 0.562
+# Linear Model with 3 parameters and polynomial regression :
 formula <- Cost_claims_year ~
   poly(Date_last_renewal, 4) + 
   poly(R_Claims_history, 9) +
@@ -1654,7 +1652,7 @@ valid_subset <- valid_subset %>%
 train_subset_2018 <- train_subset %>%
   mutate(Date_last_renewal = as.Date(Date_last_renewal, format = "%Y%m%d")) %>%
   filter(format(Date_last_renewal, "%Y") == "2018") %>%
-  select(Status, Value_vehicle, Cost_claims_year)
+  select(Status, Value_vehicle, Type_risk, Cost_claims_year)
 
 # Calculate the overall average cost
 overall_average <- mean(train_subset_2018$Cost_claims_year, na.rm = TRUE)
@@ -1666,6 +1664,19 @@ status_summary <- train_subset_2018 %>%
   mutate(Variation = (Average_Cost - overall_average) / overall_average)
 status_summary %>%
   mutate(Status = recode(Status, `0` = "Ongoing", `1` = "New"))
+
+# Calculate the average cost per Status and percentage over/under overall average
+type_summary <- train_subset_2018 %>%
+  group_by(Type_risk) %>%
+  summarize(Average_Cost = mean(Cost_claims_year, na.rm = TRUE)) %>%
+  mutate(Variation = (Average_Cost - overall_average) / overall_average)
+type_summary
+type_summary %>%
+  mutate(Type_risk = recode(Type_risk,
+                            `1` = "Motorbikes",
+                            `2` = "Vans",
+                            `3` = "Passenger cars",
+                            `4` = "Agricultural vehicles"))
 
 # Now we will adjust the cost based on the value of the vehicle
 
@@ -1687,7 +1698,7 @@ upper_bound
 # Round the Value_vehicle values :
 train_subset_2018 <- train_subset_2018 %>%
   mutate(val_vehicle = round(Value_vehicle / 1000) * 1000) %>%
-  select(val_vehicle, Cost_claims_year)
+  select(Status, val_vehicle, Type_risk, Cost_claims_year)
 
 # Replace values over upper_bound :
 train_subset_2018$val_vehicle <- ifelse(
@@ -1727,9 +1738,11 @@ apply_variation <- function(data, preds, key, summary_df) {
     pull(pred)
 }
 
-# Adjust lm_pr values based on the variations :
+# Adjust predicted values based on the variations :
 y_hat <- apply_variation(valid_subset, valid_subset$lm_pr, "Status", status_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
+
 valid_subset <- valid_subset %>%
   mutate(lm_pr_adj = y_hat)
 
@@ -1751,14 +1764,17 @@ results
 formula <- Cost_claims_year ~
   poly(Date_last_renewal, 4, raw = TRUE) + 
   poly(R_Claims_history, 9, raw = TRUE) +
-  poly(Driving_age, 8, raw = TRUE)
-  
+  poly(Driving_age, 7, raw = TRUE)
+
 # Define the offsets :
 #offsets <- seq(1000, 60000, by = 2000)
-offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100),
-             seq(1000, 40000, by = 5000),
-             seq(40000, 60000, by = 2000))
+#offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100, 2500),
+#             seq(1000, 27000, by = 2000),
+#             seq(27000, 29000, by = 100),
+#             seq(29000, 60000, by = 5000))
 #offsets <- seq(46000, 48000, by = 100)
+offsets <- c(c(0.001, 0.01, 0.1, 1, 10, 100),
+             seq(1000, 60000, by = 1000))
 
 pr_sweep_offsets <- function(offset) {
   # prepare training data with log10 transform using offset
@@ -1766,7 +1782,7 @@ pr_sweep_offsets <- function(offset) {
     mutate(Cost_claims_year = log10(Cost_claims_year + offset)) %>%
     select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
   
-  # fit model (lm via caret::train as in your original code)
+  # fit model, using biglm is much faster :
   #model <- train(formula, method = "lm", data = train_log10)
   model <- biglm(formula, data = train_log10)
 
@@ -1806,10 +1822,11 @@ for (i in seq_along(offsets)) {
   
   # invert transform
   y_hat <- 10^as.numeric(y_hat_log) - offsets[i]
-  
+
   # Adjust lm_pr values based on the variations :
   y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
   y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
+  y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
   # floor negatives
   y_hat <- pmax(y_hat, 0)
@@ -1825,8 +1842,15 @@ for (i in seq_along(offsets)) {
 #model_43000 <- model_offsets[[as.character(offset_value)]]
 #save(model_43000, file = "model_43000.RData")
 
-# Set the 0.1% threshold :
-threshold <- 0.001
+# Set the 20% threshold :
+threshold <- 0.20
+
+#i <- which.min(metrics_df$rmse)
+#offset_value <- offsets[i]
+#offset_value
+#print(metrics_df$rmse[i])
+#print(metrics_df$error[i])
+#print(metrics_df$accuracy[i])
 
 # Find the index of the first error that is less than 1%
 i <- which(abs(metrics_df$error) < threshold)[1]  # Use [1] to get the first occurrence
@@ -1835,8 +1859,8 @@ i <- which(abs(metrics_df$error) < threshold)[1]  # Use [1] to get the first occ
 if (!is.na(i)) {
   # Get the corresponding offset
   offset_value <- offsets[i]
-  print(paste("First offset with error less than 1% error is:", offset_value))
-
+  print(paste("First offset with error less than ",threshold*100,"% error is:", offset_value))
+  print(offset_value)
   print(metrics_df$rmse[i])
   print(metrics_df$error[i])
   print(metrics_df$accuracy[i])
@@ -1869,6 +1893,7 @@ offset_results_plot <- plot_grid(
     geom_line(color = "darkred", size = 0.5) +
 #    geom_point(color = "darkred", size = 2) +
     labs(x = "Offset", y = "Error") +
+    scale_y_continuous(breaks = seq(-1, 0.1, by = 0.1)) +
     theme_minimal() +
     theme(text = element_text(size = 9)),
 
@@ -1884,11 +1909,12 @@ offset_results_plot <- plot_grid(
 )
 offset_results_plot
 
-# Get model for offset 43000 :
-model <- model_offsets[[as.character(offset_value)]]
+# Get best model for offset :
+model_pr <- model_offsets[[as.character(offset_value)]]
+#model_pr <- model_offsets[["5000"]]
 
 # predict on validation (predictions are on log10 scale)
-y_hat_log <- predict(model, valid_subset, type = "raw")
+y_hat_log <- predict(model_pr, valid_subset, type = "raw")
 
 # invert transform
 y_hat <- 10^as.numeric(y_hat_log) - offset_value
@@ -1896,6 +1922,7 @@ y_hat <- 10^as.numeric(y_hat_log) - offset_value
 # Adjust lm_pr values based on the variations :
 y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
 # floor negatives
 y_hat <- pmax(y_hat, 0)
@@ -1921,8 +1948,8 @@ formula <- Cost_claims_year ~
   R_Claims_history +
   Driving_age
 
-# Using similar method as for the PR log10, we found that the optimal offset for gamLoess is 630 :
-offset <- 630
+# Using similar method as for the PR log10, we found that the optimal offset for gamLoess is 549 :
+offset <- 549
 
 # prepare training data with log10 transform using offset
 train_log10 <- train_subset %>%
@@ -1930,10 +1957,10 @@ train_log10 <- train_subset %>%
   select(Cost_claims_year, Date_last_renewal, R_Claims_history, Driving_age)
 
 # fit model
-model <- train(formula, method = "gamLoess", data = train_log10)
+model_loess <- train(formula, method = "gamLoess", data = train_log10)
 
 # predict on validation (predictions are on log10 scale)
-y_hat_log <- predict(model, valid_subset, type = "raw")
+y_hat_log <- predict(model_loess, valid_subset, type = "raw")
 
 # invert transform
 y_hat <- 10^as.numeric(y_hat_log) - offset
@@ -1941,6 +1968,7 @@ y_hat <- 10^as.numeric(y_hat_log) - offset
 # Adjust gamloess values based on the variations :
 y_hat <- apply_variation(valid_subset, y_hat, "Status", status_summary)
 y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 
 # floor negatives
 y_hat <- pmax(y_hat, 0)
@@ -2033,21 +2061,112 @@ ggplot(data_long, aes(x = Value)) +
   theme_minimal()
 
 # Accuracy
-data_long %>%
+accuracy_summary_plot <- data_long %>%
   filter(abs(Value) < 200 & Variable != "err_lm_3") %>%
   ggplot(aes(x = abs(Value), colour = Variable)) +
   stat_ecdf(aes(y = ..y.. * 100), geom = "step") +
   scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0,100)) +
-  labs(x = "Absolute error threshold", y = "Cumulative % ≤ threshold") +
-  theme_minimal()
+  labs(x = "Absolute error threshold", y = "Accuracy") +
+  scale_color_manual(name = "Legend", 
+                     values = c("err_pred_avg" = "black",
+                                "err_lm_1" = "darkblue",
+                                "err_lm_14" = "darkgreen",
+                                "err_lm_pr" = "darkred",
+                                "err_lm_pr_adj" = "darkorange"
+                     )) +
+  theme_minimal() +
+  theme(text = element_text(size = 10), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 10), nrow=2, byrow=TRUE))
+accuracy_summary_plot
 
 # Exit the script
-stop("Stopping the script.")
+#stop("Stopping the script.")
 
 #########################################################
 #         7.0 Final Test                                #
 #########################################################
 
+# We need to modify the test data to be able to apply the biases :
+# Round the Value_vehicle values :
+test_set <- test_set %>%
+  mutate(val_vehicle = round(Value_vehicle / 1000) * 1000)
+
+# Replace values over upper_bound :
+test_set$val_vehicle <- ifelse(
+  test_set$val_vehicle > upper_bound,
+  round(upper_bound / 1000) * 1000,
+  test_set$val_vehicle
+)
+
+# Convert specified columns to factors
+factor_columns <- c("Type_risk", "Status")
+test_set[factor_columns] <- sapply(test_set[factor_columns], as.factor, simplify = FALSE)
+
+# Convert Date_last_renewal to numeric
+test_set$Date_last_renewal <- as.numeric(as.Date(test_set$Date_last_renewal))
+
+# And we run the final test :
+y_hat_log <- predict(model_pr, test_set, type = "raw")
+
+# invert transform
+y_hat <- 10^as.numeric(y_hat_log) - offset_value
+
+# Adjust prediction values based on the variations :
+y_hat <- apply_variation(test_set, y_hat, "Status", status_summary)
+y_hat <- apply_variation(test_set, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(test_set, y_hat, "Type_risk", type_summary)
+
+# floor negatives
+y_hat <- pmax(y_hat, 0)
+
+# Update the results table :
+results <- update_results(test_set, y_hat, "Final Test")
+results
+
+# Update the test_set with the predictions :
+test_set_summary <- test_set %>%
+  mutate(pred = y_hat,
+         Date_last_renewal = as.Date(Date_last_renewal),
+         Week = floor_date(Date_last_renewal, unit = "week")) %>%
+  select(Date_last_renewal, Week, Cost_claims_year, pred)
+
+test_set_weekly_summary <- test_set_summary %>%
+  group_by(Week) %>%
+  summarize(
+    Total_Cost = sum(Cost_claims_year, na.rm = TRUE),
+    Total_pred = sum(pred, na.rm = TRUE)
+  )
+test_set_weekly_summary
+# Accuracy
+test_accuracy_summary_plot <- test_set_summary %>%
+  ggplot(aes(x = abs(Cost_claims_year - pred))) +
+  stat_ecdf(aes(y = ..y.. * 100), geom = "step") +
+  scale_x_continuous(limits = c(0, 200)) +
+  scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0,100)) +
+  labs(x = "Absolute error threshold", y = "Accuracy") +
+  theme_minimal() +
+  theme(text = element_text(size = 10), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 10), nrow=2, byrow=TRUE))
+test_accuracy_summary_plot
+
+# Plot the weekly summary :
+test_weekly_summary_plot <- test_set_weekly_summary %>%
+  ggplot(aes(x = Week)) +
+  geom_line(aes(y = Total_Cost, color = "Cost"), linetype = "dashed", size = 0.5) +
+  geom_line(aes(y = Total_pred, color = "Prediction"), size = 0.5) +
+  labs(x = "Week", y = "Values") +
+  scale_y_continuous(labels = comma) +
+  scale_color_manual(name = "Legend", 
+                     values = c("Cost" = "darkgrey",
+                                "Prediction" = "darkorange"
+                     )) +
+  theme_minimal() +
+  theme(text = element_text(size = 9), legend.position = "top") +
+  guides(fill = guide_legend(label.theme = element_text(size = 8), nrow=2, byrow=TRUE))
+test_weekly_summary_plot
+
+# Exit the script
+stop("Stopping the script.")
 
 #########################################################
 #         Create the PDF report                         #
@@ -2058,6 +2177,3 @@ rmarkdown::render("CarInsuranceReport.Rmd")
 #########################################################
 #         End of the script                             #
 #########################################################
-
-# Exit the script
-stop("Stopping the script.")

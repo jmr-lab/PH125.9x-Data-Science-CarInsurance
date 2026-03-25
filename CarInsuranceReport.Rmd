@@ -9,14 +9,15 @@ output:
 header-includes:
   - \usepackage{xcolor}
   - \usepackage{hyperref}
-  - \usepackage{draftwatermark}
-  - \SetWatermarkText{DRAFT}
-  - \SetWatermarkScale{1}
-  - \SetWatermarkAngle{45}
-  - \SetWatermarkColor{gray!10}
+#  - \usepackage{draftwatermark}
+#  - \SetWatermarkText{DRAFT}
+#  - \SetWatermarkScale{1}
+#  - \SetWatermarkAngle{45}
+#  - \SetWatermarkColor{gray!10}
   - \usepackage{etoolbox}
   - \AtBeginEnvironment{Shaded}{\small}
 urlcolor: blue
+linkcolor: black
 ---
 
 ```{r setup, include=FALSE}
@@ -853,10 +854,6 @@ The accuracy (\( A \)) is defined as the proportion of predictions within a thre
 A = \text{mean}\left(| \text{costs} - \text{predictions} | < 10\right)
 \]
 
-**Validation and Incremental Learning**
-
-If the validation results are satisfactory, I will consider the possibility of incrementally retraining the model using the validation data. Incremental training allows for gradual improvements, enabling the model to adapt as new patterns emerge, reflecting any shifts in customer behavior or market conditions.
-
 **Testing**
 
 The final step involves testing the model on an independent **test_set** that was set aside during the initial data preparation phase. This phase is essential for assessing the model's performance in a real-world context, allowing for a thorough evaluation of its predictive capability.
@@ -1133,11 +1130,6 @@ This technique is particularly useful for modelling data when the relationship b
  
 We can further improve our model by using a Polynomial Regression to predict the costs :
 
-\[
-f_hat(x) = b_0 * Date_last_renewal^4 + b_1 * R_Claims_history^9 + b_2 * Driving_age^8
-\]
-
-
 ```{r, eval=FALSE}
 # Use 3 predictors Date_last_renewal, R_Claims_history and Driving_age :
 formula <- Cost_claims_year ~
@@ -1189,20 +1181,16 @@ kbl(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = li
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-If we take into consideration the Status and the Value_vehicle variables, we get the following model :
+If we take into consideration the Status, Value_vehicle and the Type_risk variables, we get the following model :
 
 ```{r, eval=FALSE}
-# Adjust lm_pr values based on the variations :
-valid_subset <- valid_subset %>%
-  left_join(status_summary, by = "Status") %>%
-  mutate(lm_pr_adj = lm_pr + abs(lm_pr) * Variation) %>%
-  select(-Average_Cost, -Variation) %>%
-  left_join(value_summary, by = "val_vehicle") %>%
-  mutate(lm_pr_adj = lm_pr_adj + abs(lm_pr_adj) * Variation) %>%
-  select(-Average_Cost, -Variation)
+# Adjust predicted values based on the variations :
+y_hat <- apply_variation(valid_subset, valid_subset$lm_pr, "Status", status_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(valid_subset, y_hat, "Type_risk", type_summary)
 ```
 
-Incorporating the biases to our model doesn't change the relative error, but increase the RMSE and the Accuracy :
+Incorporating the biases to our model increases both the RMSE, the relative error and the Accuracy :
 
 ```{r, echo=FALSE}
 data_summary <- results %>%
@@ -1217,22 +1205,22 @@ kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args
   row_spec(0, bold = TRUE)
 ```
 
-The RMSE rose from 470 to 476, while the relative error remained within 1% of the target. Notably, the accuracy improved significantly from 15% to 24.6%.
+The RMSE rose from 470 to 477, while the relative error remained below 5% of the target. Notably, the accuracy improved significantly from 15% to 27%.
 
 We can further improve our model by applying a log10 transformation of the costs before running our model. As we have costs with zero values, we will need to add an offset to the cost before applying the log10 transformation :
 
 ```{r, eval=FALSE}
-# prepare training data with log10 transform using offset :
+# Prepare training data with log10 transform using offset :
 train_log10 <- train_subset %>%
   mutate(Cost_claims_year = log10(Cost_claims_year + offset))
 
-# fit model (lm via caret::train)
-model <- train(formula, method = "lm", data = train_log10)
+# Fit model using biglm
+model <- biglm(formula, data = train_log10)
 
-# predict on validation (predictions are on log10 scale)
+# Predict on validation subset (predictions are on log10 scale)
 y_hat_log <- predict(model, valid_subset, type = "raw")
 
-# invert transform
+# Invert log10 transformation
 y_hat <- 10^as.numeric(y_hat_log) - offset
 ```
 
@@ -1241,21 +1229,27 @@ y_hat <- 10^as.numeric(y_hat_log) - offset
 We then adjust the predicted values based on the variations as described previously. And we remove the negative predictions :
 
 ```{r, eval=FALSE}
-# floor negatives
-valid_subset$lm_pr_adj <- pmax(valid_subset$lm_pr_adj, 0)
+# Floor negatives
+y_hat <- pmax(y_hat, 0)
 ```
 
-We can calculate the RMSE, relative error and accuracy of the predictions for each offset. We will try for all offset values between 1000 and 60000, and for low values we will also try 0.001, 0.01, 0.1, 1, 10, 100 :
+We can calculate the RMSE, relative error and accuracy of the predictions for each offset. We will try for all offset values between 1,000 and 60,000, and for low values we will also try 0.001, 0.01, 0.1, 1, 10 and 100 :
 
 ```{r, echo=FALSE, out.width='100%', fig.align="center", fig.cap = "Offset for log10 transformation", fig.height=5}
 offset_results_plot
 ```
 
-As we can see the RMSE increases with the offset, with a decrease at low values. The relative error increases to be close to zero when the offset is about 50,000. The accuracy decreases with the offset.
+The RMSE shows an upward trend with increasing offset values, exhibiting a decrease at lower values. The relative error approaches zero when the offset is approximately 30,000, while accuracy declines as the offset increases.
+
+While selecting an offset of 30,000 could be an option, this choice may lead to overfitting, resulting in unreliable outcomes when applied to the test set.
+
+Notably, accuracy drops significantly from 0.9 to 0.55 as the offset rises from 0 to 2,000, followed by a gradual decline to approximately 0.5. The RMSE initially decreases from 470.5 to 467.5 at an offset of 1,000, then rises to 472 at the maximum offset. The relative error rapidly escalates from -1 to -0.2 around an offset of 5,000, eventually crossing the y-axis to reach 0.1.
+
+Our objective is to minimize the relative error while maintaining a low RMSE and maximizing accuracy. We will test an offset of 7,000, which yields a relative error of about -0.2.
 
 \newpage
 
-If we want to get the relative error under the 1% value, and at the same time keep the lowest RMSE and the highest accuracy, we need to take an offset of approximately 47,000. The results will then be :
+The results will then be :
 
 ```{r, echo=FALSE}
 data_summary <- results %>%
@@ -1264,14 +1258,25 @@ data_summary <- results %>%
                              "Deep Neural Network",
                              "Polynomial Regression",
                              "PR with Biases",
-                             "PR + log10 transformation"))
+                             "PR + log10 transformation",
+                             "gamLoess"))
 kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
   column_spec(2:ncol(data_summary), width = "2cm") %>%
   row_spec(0, bold = TRUE)
 ```
 
-The "PR + log10 transformation" method not only minimizes the RMSE to 470.66, signifying precision in predictions, but also achieves a low relative error close to zero, indicating that the model's predictions are nearly perfect, with minimal deviation from true values. Furthermore, the accuracy of 0.491 indicates that a significant proportion of the model's predictions are correct, demonstrating robust performance in estimating costs. This model stands out as the most reliable approach among those tested, providing confidence in its ability to deliver accurate cost estimations while effectively handling potential variability in the data.
+The "PR + log10 transformation" method not only minimizes the RMSE to 468, signifying precision in predictions, but also achieves an accuracy of 0.519 indicates that a significant proportion of the model's predictions are correct, demonstrating robust performance in estimating costs. This model stands out as the most reliable approach among those tested, providing confidence in its ability to deliver accurate cost estimations while effectively handling potential variability in the data.
+
+The graph below shows the difference in accuracies between some of the models :
+
+```{r, echo=FALSE, out.width='60%', fig.align="center", fig.cap = "Accuracy per Model", fig.height=4, fig.width=6}
+accuracy_summary_plot
+```
+
+The plot above illustrates that the polynomial regression with log10 transformation yields improved results, as evidenced by higher accuracy at lower thresholds.
+
+\newpage
 
 The graph below visually conveys how each model's cost predictions evolve over time :
 
@@ -1279,17 +1284,67 @@ The graph below visually conveys how each model's cost predictions evolve over t
 weekly_summary_plot
 ```
 
+The chart demonstrates how different regression models can capture cost trends over time, highlighting their varying levels of accuracy and responsiveness to changes during the observed period. The Polynomial Regression lines (red and orange) provide a smoother curve compared to the linear models, indicating a more refined fit to the underlying data.
+
 \newpage
 
 # 7. Final Test
 
-This page is for the Final Test
+We will use the Polynomial Regression with log10 transformation model, and adjust the predictions based on Status, Value_vehicle and Type_risk variations :
+
+```{r, eval=FALSE}
+# Predict values based on the PR model
+y_hat <- predict(model_pr_log10, test_set, type = "raw")
+
+# Invert log10 transformation
+y_hat <- 10^as.numeric(y_hat) - offset_value
+
+# Adjust prediction values based on the variations :
+y_hat <- apply_variation(test_set, y_hat, "Status", status_summary)
+y_hat <- apply_variation(test_set, y_hat, "val_vehicle", value_summary)
+y_hat <- apply_variation(test_set, y_hat, "Type_risk", type_summary)
+
+# Floor negatives
+y_hat <- pmax(y_hat, 0)
+```
+
+Which will give us the following results :
+
+```{r, echo=FALSE}
+data_summary <- results %>%
+        filter(Method %in% c("Average (Baseline)",
+                             "Linear Model (14 Variables)",
+                             "PR + log10 transformation",
+                             "Final Test"))
+kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+  kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
+  column_spec(2:ncol(data_summary), width = "2cm") %>%
+  row_spec(0, bold = TRUE)
+```
+
+The RMSE is significantly lower at 155 compared to 468 when using the validation set. Although the relative error is relatively high at approximately 18%, we are able to achieve a notable accuracy of almost 88%.
+
+The graph below visually illustrates the progression of cost predictions over time in relation to actual costs :
+
+```{r, echo=FALSE, out.width='100%', fig.align="center", fig.cap = "Total Cost per Week", fig.height=3}
+test_weekly_summary_plot
+```
 
 \newpage
 
 # 8. Conclusion
 
-This page is for the Conclusion
+We successfully predicted costs with an RMSE of 155 and a relative error of 17.9%, achieving an accuracy of 87.8%—indicating that nearly 88% of our predictions are within 10 euros of the actual costs.
+
+The data analysis revealed that costs are primarily influenced by factors such as time, vehicle power or value, type of vehicle (with motorcycles and agricultural vehicles incurring lower costs compared to cars and vans), driving age, and claims history.
+
+Notably, we found that as policyholders file more claims, they are increasingly likely to submit additional claims. Moreover, new policies are generally more prone to claims than ongoing ones. Distribution channels and payment methods also significantly affect costs.
+
+We evaluated several models for cost prediction (not all are detailed in this report). While the Deep Neural Network model fell short of our expectations, the Polynomial Regression model with a log10 transformation proved to be the most effective. This model also incorporates bias and clamping.
+
+Additionally, we improved the code's performance by utilizing the biglm library.
+
+Looking ahead, our next steps include further optimizing the code to enhance execution speed and reduce runtime. We also plan to explore the integration of Zero-Inflated Models such as Poisson (ZIP) or Negative Binomial (ZINB). By implementing these enhancements to our modelling strategy, we anticipate achieving substantial reductions in prediction errors and improving overall efficiency in our analysis.
 
 \newpage
 
@@ -1325,8 +1380,10 @@ Privacy Working Paper 3. Pittsburgh 2000. https://dataprivacylab.org/projects/id
 
 \vspace{10pt}
 
-Glen, Stephanie. 2020. “RMSE: Root Mean Square Error.” StatisticsHowTo.com. https://www.statisticshowto.com/probability-and-statistics/regression-analysis/rmse-root-mean-square-error/
+[8] Cover image from SVG SILH
+https://svgsilh.com/c3c3c3/image/1299198.html
 
 \vspace{10pt}
 
-Renata Balasco. 2026. "Factors Affecting Car Insurance Rates." https://www.thezebra.com/auto-insurance/driver/other-factors/
+[9] Icons from Font Awesome
+https://fontawesome.com/
