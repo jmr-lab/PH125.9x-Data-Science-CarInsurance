@@ -650,6 +650,8 @@ The left plots examines the impact of the policy holder's age on claim ratios. I
 
 Lastly, the right plots focuses on driving age and its relationship with claim ratios. The graph reveals that as driving age increases, the claim ratio tends to decline. This might imply that older claims are less likely to result in payout when the vehicle has been in service for a longer duration since the initial damage. The trend is consistent across all years, reinforcing that the age of driving has a predictive quality regarding how likely a claim will be submitted.
 
+Note that the cost increase per age in 2015 pertains to a 93-year-old policyholder experiencing an accident. Since there was only one individual over 80, the ratio of costs to policies does not specifically indicate that older individuals are more expensive to insure.
+
 \newpage
 
 #### Claim history :
@@ -1171,13 +1173,13 @@ With an accuracy of 0.153, the model demonstrates moderate performance. While th
 The polynomial regression is based on the 3 variables Date_last_renewal, R_Claims_history and Driving_age. We saw earlier that other variables have an impact on the cost. For example, the status (new or ongoing renewal) has some effect on the cost (this table is a summary of costs for 2018) :
 
 ```{r, echo=FALSE}
-variables <- status_summary %>%
+status_summary_chr <- status_summary %>%
   mutate(
     Status = recode(Status, `0` = "Ongoing", `1` = "New"),
     Average_Cost = round(Average_Cost, 2),
     Variation = round(Variation, 3)
   )
-kbl(variables, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
+kbl(status_summary_chr, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
@@ -1258,8 +1260,7 @@ data_summary <- results %>%
                              "Deep Neural Network",
                              "Polynomial Regression",
                              "PR with Biases",
-                             "PR + log10 transformation",
-                             "gamLoess"))
+                             "PR + log10 transformation"))
 kable(data_summary, format = "latex", booktabs = TRUE, linesep = "", format.args = list(big.mark = ",")) %>%
   kable_styling(font_size = 9, latex_options = c("hold_position")) %>%
   column_spec(2:ncol(data_summary), width = "2cm") %>%
