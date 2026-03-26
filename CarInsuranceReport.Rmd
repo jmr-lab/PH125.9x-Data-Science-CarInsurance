@@ -1345,7 +1345,7 @@ We evaluated several models for cost prediction (not all are detailed in this re
 
 Additionally, we improved the code's performance by utilizing the biglm library.
 
-Looking ahead, our next steps include further optimizing the code to enhance execution speed and reduce runtime. We also plan to explore the integration of Zero-Inflated Models such as Poisson (ZIP) or Negative Binomial (ZINB). By implementing these enhancements to our modelling strategy, we anticipate achieving substantial reductions in prediction errors and improving overall efficiency in our analysis.
+Looking ahead, our next steps include further optimizing the code to enhance execution speed and reduce runtime. The offset was selected using an empirical approach, and further refinement of this method is needed to minimize the relative error in the test set. We also plan to explore the integration of Zero-Inflated Models such as Poisson (ZIP) or Negative Binomial (ZINB). By implementing these enhancements to our modelling strategy, we anticipate achieving substantial reductions in prediction errors and improving overall efficiency in our analysis.
 
 \newpage
 

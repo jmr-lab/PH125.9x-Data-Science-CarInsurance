@@ -21,6 +21,103 @@ library(neuralnet)
 library(randomForest)
 library(gam)
 library(biglm)
+library(png)
+library(httr)
+
+#########################################################
+#         0. Get files from GitHub                      #
+#########################################################
+
+# This section is only necessary if you received the R and RMD files
+# without the dataset and images.
+# If you copied everything from GitHub, you don't need to run this.
+
+# We need to get images from GitHub :
+# the car image to be used on the cover of the report,
+# the Excel and CSV icons to be used in the report,
+# and the images to be used in the Deep Neural Network section of the report :
+
+# Define the directory for images
+img_dir <- "images"
+
+# Create the directory for images if it doesn't exist
+if (!dir.exists(img_dir)) {
+  dir.create(img_dir)
+}
+
+# Define the directory for data files
+data_dir <- "data"
+
+# Create the directory for data files if it doesn't exist
+if (!dir.exists(data_dir)) {
+  dir.create(data_dir)
+}
+
+# Function to download a file or create a blank image if download fails
+download_file <- function(file_name, is_image = FALSE) {
+  # Set the base URL based on file type
+  url <- "https://raw.githubusercontent.com/jmr-lab/PH125.9x-Data-Science-CarInsurance/refs/heads/main/"
+
+  url <- if (is_image) {
+    paste0(url, "images/")
+  } else {
+    paste0(url, "data/")
+  }
+
+    # Encode the file name to handle spaces
+  encoded_file_name <- URLencode(file_name)
+
+  url <- paste0(url, encoded_file_name)
+
+  # Attempt to download the file using httr
+  tryCatch({
+    response <- GET(url)
+    stop_for_status(response)
+
+    if (is_image) {
+      # Save the content as an image in the specified directory
+      writeBin(content(response, "raw"), file.path(img_dir, file_name))
+    } else {
+      # Save the content as a data file in the specified directory
+      writeBin(content(response, "raw"), file.path(data_dir, file_name))
+    }
+  }, error = function(e) {
+    # Create a blank image if download fails (only for images)
+    if (is_image) {
+      writePNG(array(1, dim = c(1, 1, 3)), file.path(img_dir, file_name))
+    } else {
+      # There is nothing to be done without the dataset,
+      cat("Failed to download:", file_name, ";url", url, "- ", e$message, "\n")
+      # exit the script :
+      stop("Stopping the script. Please download manually the dataset from GitHub.")
+      
+    }
+  })
+}
+
+# List of image files to download
+imgfiles <- c("carinsurancereport-cover.png",
+              "file-csv.png",
+              "file-excel.png", 
+              "deep-neural-network.png",
+              "neuron.png")
+
+# Loop through the list of image files and call the function :
+for (imgfile in imgfiles) {
+  download_file(imgfile, is_image = TRUE)
+}
+
+# We also need to get the dataset from GitHub :
+
+# List of data files to download
+datafiles <- c("Descriptive of the variables.xlsx",
+               "Motor vehicle insurance data.csv",
+               "sample type claim.csv")
+
+# Loop through the list of data files and call the function :
+for (datafile in datafiles) {
+  download_file(datafile, is_image = FALSE)
+}
 
 #########################################################
 #         3. Dataset                                    #
