@@ -1388,3 +1388,8 @@ https://svgsilh.com/c3c3c3/image/1299198.html
 
 [9] Icons from Font Awesome
 https://fontawesome.com/
+
+\vspace{10pt}
+
+[10] The text of this report was reviewed by DuckAI, an AI language model that also assisted in reviewing and correcting some of my code :
+https://duck.ai/
