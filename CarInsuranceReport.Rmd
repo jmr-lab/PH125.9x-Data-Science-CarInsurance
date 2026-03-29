@@ -355,9 +355,9 @@ driver_summary %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The date of birth ranges from April 5, 1918 to October 11, 2000, indicating that the drivers cover a wide span of ages, with most being born between 1960 and 1980. This suggests that the dataset includes both older and relatively newer drivers, allowing for an analysis of trends across different age groups.
+The date of birth ranges from 5 April 1918 to 11 October 2000, indicating that the drivers cover a wide span of ages, with most being born between 1960 and 1980. This suggests that the dataset includes both older and relatively newer drivers, allowing for an analysis of trends across different age groups.
 
-The date of driving license acquisition varies from October 1, 1942 to November 26, 2018, indicating that some drivers have held their licenses for many decades, while others are more recent license holders.
+The date of driving license acquisition varies from 1 October 1942 to 26 November 2018, indicating that some drivers have held their licenses for many decades, while others are more recent license holders.
 
 ```{r, echo=FALSE, warning=FALSE, fig.align="center", fig.cap = "Distributions of Ages and Driving ages", fig.width=6, fig.height=2}
 plot_grid(
@@ -387,7 +387,7 @@ policy_summary_1 %>%
   kable_styling(font_size = 9, latex_options = c("hold_position"))
 ```
 
-The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from October 25, 1980, to November 30, 2018, with a mean date around June 26, 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being November 2, 2015, and the latest also being November 30, 2018, implying all policies were active at some point between 2015 and 2018. The Distribution_channel indicates that more policies were contracted through agents (0) than through brokers (1).
+The policy IDs range from 1 to 53,502, indicating a substantial dataset of individual insurance policies. The contract start dates span from 25 October 1980, to 30 November 2018, with a mean date around 26 June 2014, suggesting a blend of older and more recent policies. The last renewal dates have a similar range, with the earliest being 2 November 2015, and the latest also being 30 November 2018, implying all policies were active at some point between 2015 and 2018. The Distribution_channel indicates that more policies were contracted through agents (0) than through brokers (1).
 
 ```{r, echo=FALSE}
 policy_summary_2 %>%
