@@ -799,9 +799,11 @@ Similar to the distribution channel analysis, the right graph illustrates that A
 
 A variety of variables have been examined to understand their relationships and implications for cost prediction.
 
-Initially, we analyzed the timeline of policy changes from 2015 to 2018, revealing a significant increase in the number of policies, alongside a decline in claims ratios. Additionally, vehicle characteristics—including power, value, and type of risk—showed substantial influence on claims and costs. Notably, vehicles with higher power outputs generally incur higher insurance costs.
+Initially, we analysed the timeline of policy changes from 2015 to 2018, revealing a significant increase in the number of policies, alongside a decline in claims ratios. Additionally, vehicle characteristics—including power, value, and type of risk—showed substantial influence on claims and costs. Notably, vehicles with higher power outputs generally incur higher insurance costs.
 
 The analysis of policyholders highlighted demographics, including age and driving experience, showing that younger drivers typically present higher claim ratios due to riskier driving behaviours. Established claim histories also have predictive power, indicating that past claims can influence future claims. Furthermore, examining policy status—distinguishing between new and ongoing policies—revealed that while new policies often carry higher per-policy costs, ongoing policies account for a greater overall cost due to their volume.
+
+Notably, the premium in the original dataset appears to be comprehensive, as it is primarily based on vehicle characteristics rather than other variables such as the policyholder's age or claim history. It seems the insurer has a compulsory excess of 50 euros and a voluntary excess of 800 euros that are consistent across all policies, indicating that these excess amounts are independent of specific policy details.
 
 To refine the model for predicting insurance costs, the following variables will be prioritized: timeline, policy status (new/ongoing), power, value vehicle, type risk, age, R_Claims_history, distribution channel, and payment method. Each of these factors plays a vital role in forming a comprehensive cost model that can enhance risk assessment and support strategic planning within the insurance industry.
 
