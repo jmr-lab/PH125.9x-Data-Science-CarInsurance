@@ -2133,6 +2133,8 @@ accuracy_summary_plot
 #         7.0 Final Test                                #
 #########################################################
 
+#test_set <- test_set %>% filter(Date_last_renewal < as.Date("2018-06-01"))
+
 # We need to modify the test data to be able to apply the biases :
 # Round the Value_vehicle values :
 test_set <- test_set %>%
@@ -2150,6 +2152,7 @@ factor_columns <- c("Type_risk", "Status")
 test_set[factor_columns] <- sapply(test_set[factor_columns], as.factor, simplify = FALSE)
 
 # Convert Date_last_renewal to numeric
+#test_set$Date_last_renewal <- as.Date(as.Date(test_set$Date_last_renewal))
 test_set$Date_last_renewal <- as.numeric(as.Date(test_set$Date_last_renewal))
 
 # And we run the final test :
